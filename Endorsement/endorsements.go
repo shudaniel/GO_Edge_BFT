@@ -5,6 +5,8 @@ import (
 	"strings"
 	"sync"
 	"crypto/rsa"
+	"encoding/hex"
+	"fmt"
 )
 
 type EndorsementState struct {
@@ -82,31 +84,7 @@ func (state *EndorsementState) HandleMessage(
 
 
 	case "E_PRE_PREPARE":
-
-		state.locks[prepare_key].Lock()
-		interf, _ := state.counter_prepare.LoadOrStore(msg_value + "E_PREPARE", 0)
-		count := interf.(int) 
-		if common.HasQuorum(count + 1, state.failures) {
-			state.counter_prepare.Store(msg_value + "E_PREPARE", -30)
-			state.locks[prepare_key].Unlock()
-			// Sign the original value and send back
-			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid )
-			state.locks[promise_key].Lock()
-			interf, _ = state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
-			state.counter_promise.Store(msg_value + "E_PROMISE", interf.(int) + 1)
-			state.locks[promise_key].Unlock()
-			// fmt.Printf("Quorum achieved for %s\n", message)
-			sendMessage(s, original_senderid, zone)
-		} else {
-			state.counter_prepare.Store(msg_value + "E_PREPARE", count + 1)
-			state.locks[prepare_key].Unlock()
-		}
-		
-		// fmt.Printf("E_PREPREPARE_COUNT with key: %s : %v\n", msg_value + "E_PREPARE", state.counter[msg_value + "E_PREPARE"])
-
-
-		s := createEndorseMsg( "E_PREPARE", msg_value, id, original_senderid, clientid )
-		broadcast(s)
+		fallthrough
 	case "E_PREPARE":
 		
 		state.locks[prepare_key].Lock()
@@ -118,8 +96,8 @@ func (state *EndorsementState) HandleMessage(
 			// Sign the original value and send back
 
 			signed_msg := common.SignWithPrivateKey( []byte(msg_value), priv)
-
-			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid ) + ";" + string(signed_msg)
+			// fmt.Println("Signed", msg_value, "by", id, ". LENGTH:", len(msg_value))
+			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid ) + ";" + hex.EncodeToString(signed_msg)
 			state.locks[promise_key].Lock()
 			interf, _ = state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
 			state.counter_promise.Store(msg_value + "E_PROMISE", interf.(int) + 1)
@@ -132,11 +110,16 @@ func (state *EndorsementState) HandleMessage(
 			state.locks[prepare_key].Unlock()
 		}
 
+		if msg_type == "E_PRE_PREPARE" { 
+			s := createEndorseMsg( "E_PREPARE", msg_value, id, original_senderid, clientid )
+			broadcast(s)
+		}
 	case "E_PROMISE":
 		// signature := components[4] 
 		// First, verify the message
-		signature := []byte(components[5])
-		if !common.VerifyWithPublicKey([]byte(msg_value), signature, public_keys[nodeid] ) {
+		signature, err := hex.DecodeString(components[5])
+		if err != nil || !common.VerifyWithPublicKey([]byte(msg_value), signature, public_keys[nodeid] ) {
+			fmt.Println("Failed verification for", msg_value, "from", nodeid, ". LENGTH:", len(msg_value))
 			return
 		}
 

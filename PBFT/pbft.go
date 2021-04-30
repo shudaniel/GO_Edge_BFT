@@ -73,31 +73,7 @@ func (state *PbftState) HandleMessage(
 
 
 	case "PRE_PREPARE":
-
-		state.locks[prepare_key].Lock()
-		interf, _ := state.counter_prepare.LoadOrStore(message_val + "PREPARE", 0)
-		count := interf.(int) 
-		if common.HasQuorum(count + 1, state.failures) {
-			state.counter_prepare.Store(message_val + "PREPARE", -30)
-			state.locks[prepare_key].Unlock()	
-			
-			s := create_pbft_message(clientid, id, "COMMIT", message_val)
-			// fmt.Printf("Quorum achieved for %s\n", message)
-			state.locks[commit_key].Lock()
-			interf, _ = state.counter_commit.LoadOrStore(message_val + "COMMIT", 0)
-			state.counter_commit.Store(message_val + "COMMIT", interf.(int) + 1)
-			// state.counter[message_val + "COMMIT"]++
-			state.locks[commit_key].Unlock()
-			go broadcast(s)
-		} else {
-			state.counter_prepare.Store(message_val + "PREPARE", count + 1)
-			state.locks[prepare_key].Unlock()	
-		}
-		s := create_pbft_message(clientid, id, "PREPARE", message_val)
-		go broadcast(s)
-		// fmt.Printf("PREPARE_COUNT with key: %s : %v\n", message_val + "PREPARE", state.counter[message_val + "PREPARE"])
-		
-
+		fallthrough
 	case "PREPARE":
 		
 		state.locks[prepare_key].Lock()
@@ -120,6 +96,11 @@ func (state *PbftState) HandleMessage(
 		} else {
 			state.counter_prepare.Store(message_val + "PREPARE", count + 1)
 			state.locks[prepare_key].Unlock()	
+		}
+
+		if msg_type == "PRE_PREPARE" {
+			s := create_pbft_message(clientid, id, "PREPARE", message_val)
+			go broadcast(s)
 		}
 		// fmt.Printf("PREPARE_COUNT with key: %s : %v\n", message_val + "PREPARE", state.counter[message_val + "PREPARE"])
 	case "COMMIT":

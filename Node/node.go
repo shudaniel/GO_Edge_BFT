@@ -5,6 +5,7 @@ import (
 	"EdgeBFT/pbft"
 	"EdgeBFT/endorsement"
 	"EdgeBFT/common"
+	"encoding/hex"
 	"EdgeBFT/paxos"
 	"strconv"
 	"strings"
@@ -96,7 +97,7 @@ func (n *node) createJoinMessage(reply bool) string {
 	// Send over publickey as well
 
 	pubkey_bytes := common.PublicKeyToBytes( n.public_keys[n.id] )
-	pubkey_str := string(pubkey_bytes)
+	pubkey_str := hex.EncodeToString(pubkey_bytes)
 
 	msg := n.id + "|" + n.zone + "|" + pubkey_str 
 	if reply {
@@ -169,8 +170,10 @@ func (n *node) handleJoin(message_components []string, addr *net.UDPAddr, reply 
 	nodeid := message_components[1]
 	zone := message_components[2]
 	pubkey := message_components[3]
-	pubkey_bytes := []byte(pubkey)
-
+	pubkey_bytes, err := hex.DecodeString(pubkey)
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	lock_mutex.Lock()
 	if _, ok := n.directory[zone]; !ok {
@@ -301,9 +304,9 @@ func (n *node) sendResponse(message string, addr *net.UDPAddr) {
 }
 
 func (n *node) Run() {
-	n.joinNetwork()
 	go n.listen()
 	go n.handlerRoutine()
+	n.joinNetwork()
 
 	// Wait here forever
 	finished := make(chan bool)

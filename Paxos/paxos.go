@@ -14,7 +14,7 @@ type PaxosState struct {
 }
 
 func create_paxos_message(id string, msg_type string, message_val string, clientid string, zone string) string {
-	s := msg_type + "," + id + "," + clientid + "," + zone + "," + message_val + ",end"
+	s := msg_type + "/" + id + "/" + clientid + "/" + zone + "/" + message_val + ""
 	return s
 }
 
@@ -79,7 +79,7 @@ func (state *PaxosState) HandleMessage(
 	endorsement_signals map[string]chan bool,
 	e_state *endorsement.EndorsementState,
 ) {
-	components := strings.Split(message, ",")
+	components := strings.Split(message, "/")
 	msg_type := components[0]
 	sender_id := components[1]
 	clientid := components[2]
