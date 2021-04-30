@@ -14,7 +14,7 @@ type PaxosState struct {
 }
 
 func create_paxos_message(id string, msg_type string, message_val string, clientid string, zone string) string {
-	s := msg_type + "," + id + "," + clientid + "," + zone + "," + message_val
+	s := msg_type + "," + id + "," + clientid + "," + zone + "," + message_val + ",end"
 	return s
 }
 
@@ -64,6 +64,11 @@ func (state *PaxosState) Run(
 	return false
 }
 
+func (state *PaxosState) HandleShareMessage(message string) {
+	// This is a message that the leader has processed and is sharing with you
+
+}
+
 func (state *PaxosState) HandleMessage(
 	message string,
 	broadcast func(string),
@@ -101,11 +106,14 @@ func (state *PaxosState) HandleMessage(
 			state.counter[message_val] = -30
 			state.locks[acceptack_key].Unlock()
 			s := create_paxos_message(id, "PAXOS_COMMIT", message_val, clientid, zone)
-
 			// Run endorsement for commit message
+			go func(s string, id string, clientid string,endorsement_signals map[string]chan bool, e_state *endorsement.EndorsementState, localbroadcast func(string), broadcast func(string)) {
+				if e_state.Run( s, id, clientid, endorsement_signals[clientid], localbroadcast ) {
+					broadcast("PAXOS|" + s)
+				}
+			} (s, id, clientid, endorsement_signals, e_state, localbroadcast, broadcast)
 			fmt.Printf("Quorum achieved for %s\n", message)
 			signals[clientid] <- true
-			go broadcast("PAXOS|" + s)
 		} else {
 			state.locks[acceptack_key].Unlock()
 		}
@@ -114,4 +122,6 @@ func (state *PaxosState) HandleMessage(
 		// Take value and commit it to the log
 
 	}
+	// Share the message with the rest of the zone
+	go localbroadcast("SHARE|" + message_val)
 }

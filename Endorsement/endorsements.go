@@ -25,7 +25,7 @@ func NewEndorseState(f int) *EndorsementState {
 }
 
 func createEndorseMsg(msg_type string, message string, nodeid string, original_senderid string, clientid string) string {
-	return "ENDORSE|"  + msg_type + ";" + nodeid +  ";" + original_senderid + ";" + clientid + ";" + message
+	return "ENDORSE|"  + msg_type + ";" + nodeid +  ";" + original_senderid + ";" + clientid + ";" + message + ";end"
 }
 
 func (state *EndorsementState) GetF() int {

@@ -15,7 +15,7 @@ type PbftState struct {
 }
 
 func create_pbft_message(id string, msg_type string, message_val string) string {
-	s := "PBFT|" + msg_type + ";" + id + ";" + message_val
+	s := "PBFT|" + msg_type + ";" + id + ";" + message_val + ";end"
 	return s
 }
 
@@ -64,7 +64,6 @@ func (state *PbftState) HandleMessage(
 	msg_type := components[0]
 	message_val := components[2]
 
-
 	clientid := strings.Split(message_val, "!")[0]
 	prepare_key := clientid + "PREPARE"
 	commit_key := clientid + "COMMIT"
@@ -83,9 +82,9 @@ func (state *PbftState) HandleMessage(
 			
 			s := create_pbft_message(id, "COMMIT", message_val)
 			fmt.Printf("Quorum achieved for %s\n", message)
-			// state.locks[commit_key].Lock()
-			// state.counter[message_val + "COMMIT"]++
-			// state.locks[commit_key].Unlock()
+			state.locks[commit_key].Lock()
+			state.counter[message_val + "COMMIT"]++
+			state.locks[commit_key].Unlock()
 			go broadcast(s)
 		} else {
 			state.locks[prepare_key].Unlock()	

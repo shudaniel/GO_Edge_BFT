@@ -219,6 +219,9 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 	case "PAXOS":
 		paxos_msg := components[1]
 		go n.paxos_state.HandleMessage(paxos_msg, n.broadcastInterzonal, n.broadcastToZone, n.sendToNode, n.id, n.paxos_signals, n.endorse_signals, n.endorse_state)
+	case "SHARE":
+		paxos_msg := components[1]
+		go n.paxos_state.HandleShareMessage(paxos_msg)
 	case "PBFT":
 		pbft_msg := components[1]
 		go n.pbft_state.HandleMessage(pbft_msg, n.broadcastToZone ,n.id, n.pbft_signals)
@@ -232,8 +235,8 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 func (n *node) listen() {
 	for {
 		p := make([]byte, 4096)
-        _,remoteaddr,err := n.sock.ReadFromUDP(p)
-        // fmt.Printf("Read a message from %v %s \n", remoteaddr, p)
+        len,remoteaddr,err := n.sock.ReadFromUDP(p)
+        fmt.Printf("Read a message (%d) %s \n", len, p)
 		n.msg_chan <- triple{
 			Msg: string( p ),
 			Address: remoteaddr,
