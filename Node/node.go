@@ -140,11 +140,13 @@ func (n *node) handleJoin(message_components []string, addr *net.UDPAddr, reply 
 	nodeid := message_components[1]
 	zone := message_components[2]
 
+	lock_mutex.Lock()
 	if _, ok := n.directory[zone]; !ok {
 		n.directory[zone] = make(map[string]*net.UDPAddr)
 	}
 	
 	n.directory[zone][nodeid] = addr
+	lock_mutex.Unlock()
 	
 	if reply {
 		reply_msg := "JOIN_NOREPLY|" + n.id + "|" + n.zone
@@ -158,10 +160,13 @@ func (n *node) handleClientJoin(clientid string, zone string) {
 		fmt.Printf("Client joining: %s\n", clientid)
 		n.client_list[clientid] = true
 	}
+	n.pbft_signals[clientid] = make(chan bool)
+	n.paxos_signals[clientid] = make(chan bool)
+	n.endorse_signals[clientid] = make(chan bool)
 	fmt.Printf("Client locks created: %s\n", zone)
-	n.pbft_state.AddLock(clientid)
-	n.endorse_state.AddLock(clientid)
-	n.paxos_state.AddLock(clientid)
+	n.pbft_state.Initialize(clientid)
+	n.endorse_state.Initialize(clientid)
+	n.paxos_state.Initialize(clientid)
 	lock_mutex.Unlock()
 }
 
@@ -172,11 +177,9 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 	start := time.Now()
 	if n.client_list[client_id] {
 		// fmt.Println("%s is in client list", client_id)
-		n.pbft_signals[client_id] = make(chan bool)
 		success = n.pbft_state.Run(message, n.id, client_id,  n.pbft_signals[client_id] ,n.broadcastToZone)
 	} else {
 		// fmt.Println("%s not is in client list", client_id)
-		n.paxos_signals[client_id] = make(chan bool)
 		success = n.paxos_state.Run(message, n.id, n.zone, client_id, n.paxos_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state)
 	}
 	end := time.Now()
@@ -185,7 +188,7 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 	if !success {
 		total_time = 0.0
 	}
-	fmt.Println("Total time: %d", total_time)
+	// fmt.Println("Total time: %d", total_time)
 	n.sendResponse(fmt.Sprintf("%f", total_time), addr)
 
 }
@@ -204,7 +207,7 @@ func (n *node) broadcastInterzonal(message string) {
 
 func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 	components := strings.Split(message, "|")
-	fmt.Printf("Received: %s \n", message)
+	// fmt.Printf("Received: %s \n", message)
 	msg_type := components[0]
 	switch msg_type {
 	case "JOIN":
@@ -220,16 +223,17 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 		n.handleClientRequest(request_msg, addr)
 	case "ENDORSE":
 		endorse_msg := components[1]
-		go n.endorse_state.HandleMessage(endorse_msg, n.broadcastToZone, n.sendToNode, n.zone, n.id, n.endorse_signals)
+		n.endorse_state.HandleMessage(endorse_msg, n.broadcastToZone, n.sendToNode, n.zone, n.id, n.endorse_signals)
 	case "PAXOS":
 		paxos_msg := components[1]
-		go n.paxos_state.HandleMessage(paxos_msg, n.broadcastInterzonal, n.broadcastToZone, n.sendToNode, n.id, n.paxos_signals, n.endorse_signals, n.endorse_state)
+		n.paxos_state.HandleMessage(paxos_msg, n.broadcastInterzonal, n.broadcastToZone, n.sendToNode, n.id, n.paxos_signals, n.endorse_signals, n.endorse_state)
 	case "SHARE":
 		paxos_msg := components[1]
-		go n.paxos_state.HandleShareMessage(paxos_msg)
+		n.paxos_state.HandleShareMessage(paxos_msg)
 	case "PBFT":
-		pbft_msg := components[1]
-		go n.pbft_state.HandleMessage(pbft_msg, n.broadcastToZone ,n.id, n.pbft_signals)
+		clientid := components[1]
+		pbft_msg := components[2]
+		n.pbft_state.HandleMessage(pbft_msg, n.broadcastToZone ,n.id, clientid, n.pbft_signals[clientid])
 	case "RESET":
 		n.reset()
 	}
@@ -240,8 +244,8 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 func (n *node) listen() {
 	for {
 		p := make([]byte, 4096)
-        len,remoteaddr,err := n.sock.ReadFromUDP(p)
-        fmt.Printf("Read a message (%d) %s \n", len, p)
+        _,remoteaddr,err := n.sock.ReadFromUDP(p)
+        // fmt.Printf("Read a message (%d) %s \n", len, p)
 		n.msg_chan <- triple{
 			Msg: string( p ),
 			Address: remoteaddr,

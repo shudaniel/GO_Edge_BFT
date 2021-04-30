@@ -2,7 +2,6 @@ package paxos
 
 import (
 	"strings"
-	"fmt"
 	"EdgeBFT/endorsement"
 	"sync"
 )
@@ -32,7 +31,7 @@ func majorityAchieved(count int) bool {
 	return count >= 1  // subtract one because you can already count that you voted for yourself
 }
 
-func (state *PaxosState) AddLock(clientid string ) {
+func (state *PaxosState) Initialize(clientid string ) {
 	state.locks[clientid + "ACCEPTACK"] = &sync.Mutex{}
 }
 
@@ -49,11 +48,11 @@ func (state *PaxosState) Run(
 	e_state *endorsement.EndorsementState,
 ) bool {
 
-	fmt.Println("Need endorsement first")
+	// fmt.Println("Need endorsement first")
 	preprepare_msg := create_paxos_message(id, "ACCEPT", message, clientid, zone)
-	endorsement_signals[clientid] = make(chan bool)
+	
 	if e_state.Run( preprepare_msg, id, clientid, endorsement_signals[clientid], localbroadcast ) {
-		fmt.Println("Got endorsement")
+		// fmt.Println("Got endorsement")
 		// Get endorsement for this message
 		// Do not send message to yourself. Just ack it immediately
 		
@@ -95,7 +94,7 @@ func (state *PaxosState) HandleMessage(
 
 	case "ACCEPT":
 		s := create_paxos_message(id, "ACCEPTACK", message_val, clientid, zone)
-		endorsement_signals[clientid]  = make(chan bool)
+		
 		if e_state.Run(s, id, clientid, endorsement_signals[clientid], localbroadcast) {
 			go sendMessage("PAXOS|" + s, sender_id,zone)
 		}
@@ -113,7 +112,7 @@ func (state *PaxosState) HandleMessage(
 					broadcast("PAXOS|" + s)
 				}
 			} (s, id, clientid, endorsement_signals, e_state, localbroadcast, broadcast)
-			fmt.Printf("Quorum achieved for %s\n", message)
+			// fmt.Printf("Quorum achieved for %s\n", message)
 			signals[clientid] <- true
 		} else {
 			state.counter.Store(message_val, count + 1)

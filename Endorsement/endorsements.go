@@ -3,7 +3,6 @@ package endorsement
 import (
 	"EdgeBFT/common"
 	"strings"
-	"fmt"
 	"sync"
 )
 
@@ -34,7 +33,7 @@ func (state *EndorsementState) GetF() int {
 	return state.failures
 }
 
-func (state *EndorsementState) AddLock(clientid string ) {
+func (state *EndorsementState) Initialize(clientid string ) {
 	state.locks[clientid + "E_PREPARE"] = &sync.Mutex{}
 	state.locks[clientid + "E_PROMISE"] = &sync.Mutex{}
 }
@@ -92,7 +91,7 @@ func (state *EndorsementState) HandleMessage(
 			interf, _ = state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
 			state.counter_promise.Store(msg_value + "E_PROMISE", interf.(int) + 1)
 			state.locks[promise_key].Unlock()
-			fmt.Printf("Quorum achieved for %s\n", message)
+			// fmt.Printf("Quorum achieved for %s\n", message)
 			sendMessage(s, original_senderid, zone)
 		} else {
 			state.counter_prepare.Store(msg_value + "E_PREPARE", count + 1)
@@ -119,7 +118,7 @@ func (state *EndorsementState) HandleMessage(
 			state.counter_promise.Store(msg_value + "E_PROMISE", interf.(int) + 1)
 			// state.counter[msg_value + "E_PROMISE"]++
 			state.locks[promise_key].Unlock()
-			fmt.Printf("Quorum achieved for %s\n", message)
+			// fmt.Printf("Quorum achieved for %s\n", message)
 			sendMessage(s, original_senderid, zone)
 		} else {
 			state.counter_prepare.Store(msg_value + "E_PREPARE", count + 1)
@@ -137,7 +136,7 @@ func (state *EndorsementState) HandleMessage(
 			// Value has been committed
 			// Signal other channel
 			if ch, ok := signals[clientid]; ok {
-				fmt.Printf("Quorum achieved for endorsement %s\n", message)
+				// fmt.Printf("Quorum achieved for endorsement %s\n", message)
 				ch <- true
 			}
 			// Endorsement achieved

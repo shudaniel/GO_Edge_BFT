@@ -3,7 +3,6 @@ package pbft
 import (
 	"EdgeBFT/common"
 	"strings"
-	"fmt"
 	"sync"
 )
 
@@ -16,8 +15,8 @@ type PbftState struct {
 	//localLog          []common.Message
 }
 
-func create_pbft_message(id string, msg_type string, message_val string) string {
-	s := "PBFT|" + msg_type + ";" + id + ";" + message_val + ";end"
+func create_pbft_message(clientid string, id string, msg_type string, message_val string) string {
+	s := "PBFT|" + clientid + "|" + msg_type + ";" + id + ";" + message_val + ";end"
 	return s
 }
 
@@ -37,7 +36,7 @@ func (state *PbftState) GetF() int {
 	return state.failures
 }
 
-func (state *PbftState) AddLock(clientid string ) {
+func (state *PbftState) Initialize(clientid string ) {
 	state.locks[clientid + "PREPARE"] = &sync.Mutex{}
 	state.locks[clientid + "COMMIT"] = &sync.Mutex{}
 }
@@ -51,7 +50,7 @@ func (state *PbftState) Run(
 
 ) bool {
 
-	preprepare_msg := create_pbft_message(id,"PRE_PREPARE",  message)
+	preprepare_msg := create_pbft_message(clientid, id,"PRE_PREPARE",  message)
 	go broadcast(preprepare_msg)
 	committed := <- ch
 	return committed
@@ -61,13 +60,13 @@ func (state *PbftState) HandleMessage(
 	message string,
 	broadcast func(string),
 	id string,
-	signals map[string]chan bool,
+	clientid string,
+	ch chan<- bool,
 ) {
 	components := strings.Split(message, ";")
 	msg_type := components[0]
 	message_val := components[2]
 
-	clientid := strings.Split(message_val, "!")[0]
 	prepare_key := clientid + "PREPARE"
 	commit_key := clientid + "COMMIT"
 	switch msg_type {
@@ -82,8 +81,8 @@ func (state *PbftState) HandleMessage(
 			state.counter_prepare.Store(message_val + "PREPARE", -30)
 			state.locks[prepare_key].Unlock()	
 			
-			s := create_pbft_message(id, "COMMIT", message_val)
-			fmt.Printf("Quorum achieved for %s\n", message)
+			s := create_pbft_message(clientid, id, "COMMIT", message_val)
+			// fmt.Printf("Quorum achieved for %s\n", message)
 			state.locks[commit_key].Lock()
 			interf, _ = state.counter_commit.LoadOrStore(message_val + "COMMIT", 0)
 			state.counter_commit.Store(message_val + "COMMIT", interf.(int) + 1)
@@ -94,7 +93,7 @@ func (state *PbftState) HandleMessage(
 			state.counter_prepare.Store(message_val + "PREPARE", count + 1)
 			state.locks[prepare_key].Unlock()	
 		}
-		s := create_pbft_message(id, "PREPARE", message_val)
+		s := create_pbft_message(clientid, id, "PREPARE", message_val)
 		go broadcast(s)
 		// fmt.Printf("PREPARE_COUNT with key: %s : %v\n", message_val + "PREPARE", state.counter[message_val + "PREPARE"])
 		
@@ -110,8 +109,8 @@ func (state *PbftState) HandleMessage(
 		// if common.HasQuorum(state.counter[message_val + "PREPARE"], state.failures) {
 			// state.counter[message_val + "PREPARE"] = -30
 			state.locks[prepare_key].Unlock()	
-			s := create_pbft_message(id, "COMMIT", message_val)
-			fmt.Printf("Quorum achieved for %s\n", message)
+			s := create_pbft_message(clientid, id, "COMMIT", message_val)
+			// fmt.Printf("Quorum achieved for %s\n", message)
 			state.locks[commit_key].Lock()
 			interf, _ = state.counter_commit.LoadOrStore(message_val + "COMMIT", 0)
 			state.counter_commit.Store(message_val + "COMMIT", interf.(int) + 1)
@@ -136,10 +135,10 @@ func (state *PbftState) HandleMessage(
 			// Value has been committed
 			state.locks[commit_key].Unlock()
 			// Signal other channel
-			if ch, ok := signals[clientid]; ok {
-				fmt.Printf("Quorum achieved for pbft %s\n", message)
-				ch <- true
-			}
+			
+			// fmt.Printf("Quorum achieved for pbft %s\n", message)
+			ch <- true
+			
 		} else {
 			state.counter_commit.Store(message_val + "COMMIT", count + 1)
 			state.locks[commit_key].Unlock()
