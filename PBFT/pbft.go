@@ -48,7 +48,7 @@ func (state *PbftState) Run(
 
 ) bool {
 
-	preprepare_msg := create_pbft_message(id, message, "PRE_PREPARE")
+	preprepare_msg := create_pbft_message(id,"PRE_PREPARE",  message)
 	go broadcast(preprepare_msg)
 	committed := <- ch
 	return committed
