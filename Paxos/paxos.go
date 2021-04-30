@@ -4,21 +4,24 @@ import (
 	"strings"
 	"fmt"
 	"EdgeBFT/endorsement"
+	"sync"
 )
 
 type PaxosState struct {
 	counter           map[string]int
+	locks             map[string]*sync.Mutex
 	//localLog          []common.Message
 }
 
 func create_paxos_message(id string, msg_type string, message_val string, clientid string) string {
-	s := "PAXOS|" + msg_type + ";" + id + ";" + clientid + ";" + message_val
+	s := msg_type + "," + id + "," + clientid + "," + message_val
 	return s
 }
 
 func NewPaxosState() *PaxosState {
 	newState := PaxosState{
 		counter:           make(map[string]int),
+		locks:             make(map[string]*sync.Mutex),
 		//localLog:          make([]common.Message, 0),
 	}
 
@@ -26,8 +29,13 @@ func NewPaxosState() *PaxosState {
 }
 
 func majorityAchieved(count int) bool {
-	return count >= 2
+	return count >= 1  // subtract one because you can already count that you voted for yourself
 }
+
+func (state *PaxosState) AddLock(clientid string ) {
+	state.locks[clientid + "ACCEPTACK"] = &sync.Mutex{}
+}
+
 
 func (state *PaxosState) Run(
 	message string, 
@@ -40,14 +48,13 @@ func (state *PaxosState) Run(
 	e_state *endorsement.EndorsementState,
 ) bool {
 
-	preprepare_msg := create_paxos_message(id, message, "ACCEPT", clientid)
+	preprepare_msg := create_paxos_message(id, "ACCEPT", message, clientid)
 	endorsement_signals[clientid] = make(chan bool)
 	if e_state.Run( preprepare_msg, id, clientid, endorsement_signals[clientid], localbroadcast ) {
 		// Get endorsement for this message
 		// Do not send message to yourself. Just ack it immediately
-		state.counter[message] = 1
 		
-		go broadcast(preprepare_msg)
+		go broadcast( "PAXOS|" + preprepare_msg)
 		committed := <-ch
 		return committed
 	}
@@ -63,10 +70,12 @@ func (state *PaxosState) HandleMessage(
 	endorsement_signals map[string]chan bool,
 	e_state *endorsement.EndorsementState,
 ) {
-	components := strings.Split(message, ";")
+	components := strings.Split(message, ",")
 	msg_type := components[0]
 	clientid := components[2]
 	message_val := components[3]
+
+	acceptack_key := clientid + "ACCEPTACK"
 
 	// Verify the signature first before doing anything
 
@@ -77,18 +86,22 @@ func (state *PaxosState) HandleMessage(
 		s := create_paxos_message(id, "ACCEPTACK", message_val, clientid)
 		endorsement_signals[clientid]  = make(chan bool)
 		if e_state.Run(s, id, clientid, endorsement_signals[clientid], localbroadcast) {
-			go broadcast(s)
+			go broadcast("PAXOS|" + s)
 		}
 	case "ACCEPTACK":
-		
+		state.locks[acceptack_key].Lock()
 		state.counter[message_val]++
 		if majorityAchieved(state.counter[message_val]) {
-			s := create_paxos_message(id, "COMMIT", message_val, clientid)
+			state.counter[message_val] = -30
+			state.locks[acceptack_key].Unlock()
+			s := create_paxos_message(id, "PAXOS_COMMIT", message_val, clientid)
 			fmt.Printf("Quorum achieved for %s\n", message)
 			signals[clientid] <- true
-			go broadcast(s)
+			go broadcast("PAXOS|" + s)
+		} else {
+			state.locks[acceptack_key].Unlock()
 		}
-	case "COMMIT":
+	case "PAXOS_COMMIT":
 
 		// Take value and commit it to the log
 

@@ -1,7 +1,10 @@
 package main
 import (
     // "net"  
+	"fmt"
 	"EdgeBFT/node"
+	"os"
+	"strconv"
 )
 
 
@@ -15,11 +18,39 @@ import (
 
 
 func main() {
-
+	fmt.Println("Hello")
 	ip_addr := "127.0.0.1"
 	port := 8000
 	zone := "0"
 	f := 1
+
+	test := make(map[string]int)
+	test["hello?"]++
+
+	fmt.Printf("%v\n", test["hello?"])
+
+	argsWithoutProg := os.Args[1:]
+	for i, s := range argsWithoutProg {
+		switch s {
+		case "-f":
+			new_f, err := strconv.Atoi(argsWithoutProg[i + 1])
+			if err == nil {
+				f = new_f
+			}
+		
+		case "-a":
+			ip_addr = argsWithoutProg[i + 1]
+		
+		case "-p":
+			new_p, err := strconv.Atoi(argsWithoutProg[i + 1])
+			if err == nil {
+				port = new_p
+			}
+		case "-z":
+			zone = argsWithoutProg[i + 1]
+		}
+
+	}
 
 	node := node.NewNode(ip_addr, port, zone, f)
 	node.Run()

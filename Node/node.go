@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"os"
+	"time"
 	"bufio"
 )
 
@@ -28,6 +29,7 @@ type node struct {
 	endorse_signals           map[string]chan bool
 	pbft_signals           map[string]chan bool
 	paxos_signals           map[string]chan bool
+	client_list map[string]bool
 	//localLog          []common.Message
 }
 
@@ -56,6 +58,7 @@ func NewNode(ip string, port int, z string, f int) *node {
 		endorse_signals:             make(map[string]chan bool),
 		pbft_signals:             make(map[string]chan bool),
 		paxos_signals:             make(map[string]chan bool),
+		client_list: make(map[string]bool),
 	}
 
 	return &newNode
@@ -136,11 +139,9 @@ func (n *node) handleJoin(message_components []string, addr *net.UDPAddr, reply 
 
 	if _, ok := n.directory[zone]; !ok {
 		n.directory[zone] = make(map[string]*net.UDPAddr)
-		
 	}
 	
 	n.directory[zone][nodeid] = addr
-	
 	
 	if reply {
 		reply_msg := "JOIN_NOREPLY|" + n.id + "|" + n.zone
@@ -148,7 +149,39 @@ func (n *node) handleJoin(message_components []string, addr *net.UDPAddr, reply 
 	}
 }
 
-func (n *node) handleClientRequest(message string) {
+func (n *node) handleClientJoin(clientid string, zone string) {
+	if n.zone == zone {
+		fmt.Printf("Client joining: %s\n", clientid)
+		n.client_list[clientid] = true
+	}
+	fmt.Printf("Client locks created: %s\n", zone)
+	n.pbft_state.AddLock(clientid)
+	n.endorse_state.AddLock(clientid)
+	n.paxos_state.AddLock(clientid)
+}
+
+func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
+	components := strings.Split(message, "!")
+	client_id := components[0]
+	var success bool
+	start := time.Now()
+	if n.client_list[client_id] {
+		// fmt.Println("%s is in client list", client_id)
+		n.pbft_signals[client_id] = make(chan bool)
+		success = n.pbft_state.Run(message, n.id, client_id,  n.pbft_signals[client_id] ,n.broadcastToZone)
+	} else {
+		// fmt.Println("%s not is in client list", client_id)
+		n.paxos_signals[client_id] = make(chan bool)
+		success = n.paxos_state.Run(message, n.id, client_id, n.paxos_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state)
+	}
+	end := time.Now()
+	difference := start.Sub(end)
+	total_time := difference.Seconds() 
+	if !success {
+		total_time = 0.0
+	}
+	fmt.Println("Total time: %d", total_time)
+	n.sendResponse(fmt.Sprintf("%f", total_time), addr)
 
 }
 
@@ -173,6 +206,13 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 		n.handleJoin(components, addr, true)
 	case "JOIN_NOREPLY":
 		n.handleJoin(components, addr, false)
+	case "CLIENT_JOIN":
+		clientid := components[1]
+		zone := components[2]
+		n.handleClientJoin(clientid, zone)
+	case "CLIENT_REQUEST":
+		request_msg := components[1]
+		n.handleClientRequest(request_msg, addr)
 	case "ENDORSE":
 		endorse_msg := components[1]
 		go n.endorse_state.HandleMessage(endorse_msg, n.broadcastToZone, n.sendToNode, n.id, n.endorse_signals)
@@ -190,12 +230,12 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 }
 
 func (n *node) listen() {
-	p := make([]byte, 2048)
 	for {
+		p := make([]byte, 2048)
         _,remoteaddr,err := n.sock.ReadFromUDP(p)
         // fmt.Printf("Read a message from %v %s \n", remoteaddr, p)
 		n.msg_chan <- triple{
-			Msg: string( p[:] ),
+			Msg: string( p ),
 			Address: remoteaddr,
 		}
         if err !=  nil {
@@ -206,7 +246,7 @@ func (n *node) listen() {
 }
 
 func (n *node) sendResponse(message string, addr *net.UDPAddr) {
-	
+	// fmt.Printf("Sending: %s \n", message)
 	_,err := n.sock.WriteToUDP([]byte(message + "*"), addr)
 	if err != nil {
 		fmt.Printf("Couldn't send response %v", err)
