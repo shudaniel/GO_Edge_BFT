@@ -65,6 +65,8 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 		}
 
 		fmt.Fprintf(conn, client_join)
+
+		conn.Close()
 	}
 	file.Close()
 	// lock_mutex.Unlock()
@@ -167,7 +169,7 @@ func main() {
 	client_id := 0
 	percent := 0.5
 	ip_addr := "127.0.0.1"
-	port := 9000
+	port := 8000
 
 	argsWithoutProg := os.Args[1:]
 	for i, s := range argsWithoutProg {

@@ -5,13 +5,13 @@ import os
 import json
 
 clients = [
-    ("127.0.0.1", 7000),
-    ("127.0.0.1", 9000),
-    ("127.0.0.1", 9500)
+    ("13.57.19.47", 8000),
+    ("3.128.153.134", 8000),
+    ("3.96.186.110", 8000)
 ]
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.bind(("127.0.0.1", 6000))
+sock.bind(("10.0.0.166", 8000))
 
 
 start = input("Push any key to start")
