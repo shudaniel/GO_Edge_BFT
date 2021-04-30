@@ -7,7 +7,6 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/pem"
-	"encoding/binary"
   	"fmt"
 )
 
@@ -93,25 +92,6 @@ func BytesToPublicKey(pub []byte) *rsa.PublicKey {
 	return key
 }
 
-// EncryptWithPublicKey encrypts data with public key
-func EncryptWithPublicKey(msg []byte, pub *rsa.PublicKey) []byte {
-	hash := sha1.New()
-	ciphertext, err := rsa.EncryptOAEP(hash, rand.Reader, pub, msg, nil)
-	if err != nil {
-		fmt.Println(err)
-	}
-	return ciphertext
-}
-
-// DecryptWithPrivateKey decrypts data with private key
-func DecryptWithPrivateKey(ciphertext []byte, priv *rsa.PrivateKey) []byte {
-	hash := sha1.New()
-	plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, priv, ciphertext, nil)
-	if err != nil {
-		fmt.Println(err)
-	}
-	return plaintext
-} 
 
 func SignWithPrivateKey(msg []byte, priv *rsa.PrivateKey) []byte {
 
@@ -134,41 +114,3 @@ func VerifyWithPublicKey(msg []byte, sig []byte, pub *rsa.PublicKey) bool {
 	return rsa.VerifyPSS(pub, crypto.SHA1, d, sig, nil) == nil
 }
 
-
-// Encoding from: https://stackoverflow.com/questions/13573269/convert-string-to-byte
-
-const maxInt32 = 1<<(32-1) - 1
-
-func writeLen(b []byte, l int) []byte {
-    if 0 > l || l > maxInt32 {
-        panic("writeLen: invalid length")
-    }
-    var lb [4]byte
-    binary.BigEndian.PutUint32(lb[:], uint32(l))
-    return append(b, lb[:]...)
-}
-
-func readLen(b []byte) ([]byte, int) {
-    if len(b) < 4 {
-        panic("readLen: invalid length")
-    }
-    l := binary.BigEndian.Uint32(b)
-    if l > maxInt32 {
-        panic("readLen: invalid length")
-    }
-    return b[4:], int(l)
-}
-
-// func Decode(bb []byte) string {
-	
-// }
-
-// func Encode(s []string) []byte {
-//     var b []byte
-//     b = writeLen(b, len(s))
-//     for _, ss := range s {
-//         b = writeLen(b, len(ss))
-//         b = append(b, ss...)
-//     }
-//     return b
-// }
