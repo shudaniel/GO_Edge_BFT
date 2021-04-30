@@ -13,10 +13,13 @@ def client_thread(id, ip, port, num_transactions, percent, zone, primaries, time
 
     clientjoin_msg = "CLIENT_JOIN|" + client_id + "|" + zone + "*"
 	
-    with open("sample.json", "r") as readfile:
-        addresses = json.loads(readfile.read())
-        for addr in addresses:
-            sock.sendto(clientjoin_msg.encode('utf-8'), (addr[0], addr[1]))
+    with open("../addresses.txt", "r") as readfile:
+        Lines = readfile.readlines()
+        for line in Lines:
+
+            ip_addr, port = line.split(" ")
+            print(ip_addr, port)
+            sock.sendto(clientjoin_msg.encode('utf-8'), (ip_addr, int(port)))
     
     time.sleep(10)
     num_global = 0
