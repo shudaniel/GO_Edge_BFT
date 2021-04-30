@@ -8,7 +8,7 @@ import (
 )
 
 type PaxosState struct {
-	counter           map[string]int
+	counter           sync.Map
 	locks             map[string]*sync.Mutex
 	//localLog          []common.Message
 }
@@ -20,7 +20,7 @@ func create_paxos_message(id string, msg_type string, message_val string, client
 
 func NewPaxosState() *PaxosState {
 	newState := PaxosState{
-		counter:           make(map[string]int),
+		counter:           sync.Map{},
 		locks:             make(map[string]*sync.Mutex),
 		//localLog:          make([]common.Message, 0),
 	}
@@ -101,9 +101,10 @@ func (state *PaxosState) HandleMessage(
 		}
 	case "ACCEPTACK":
 		state.locks[acceptack_key].Lock()
-		state.counter[message_val]++
-		if majorityAchieved(state.counter[message_val]) {
-			state.counter[message_val] = -30
+		interf, _ := state.counter.LoadOrStore(message_val, 0)
+		count := interf.(int) 
+		if majorityAchieved(count + 1) {
+			state.counter.Store(message_val, -30)
 			state.locks[acceptack_key].Unlock()
 			s := create_paxos_message(id, "PAXOS_COMMIT", message_val, clientid, zone)
 			// Run endorsement for commit message
@@ -115,6 +116,7 @@ func (state *PaxosState) HandleMessage(
 			fmt.Printf("Quorum achieved for %s\n", message)
 			signals[clientid] <- true
 		} else {
+			state.counter.Store(message_val, count + 1)
 			state.locks[acceptack_key].Unlock()
 		}
 	case "PAXOS_COMMIT":

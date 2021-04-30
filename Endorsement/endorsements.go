@@ -8,14 +8,16 @@ import (
 )
 
 type EndorsementState struct {
-	counter           map[string]int
+	counter_prepare           sync.Map
+	counter_promise           sync.Map
 	failures          int
 	locks             map[string]*sync.Mutex
 }
 
 func NewEndorseState(f int) *EndorsementState {
 	newState := EndorsementState{
-		counter:           make(map[string]int),
+		counter_prepare:          	sync.Map{},
+		counter_promise:          	sync.Map{},
 		locks:  make(map[string]*sync.Mutex),
 		failures: f,
 		//localLog:          make([]common.Message, 0),
@@ -79,19 +81,21 @@ func (state *EndorsementState) HandleMessage(
 	case "E_PRE_PREPARE":
 
 		state.locks[prepare_key].Lock()
-		state.counter[msg_value + "E_PREPARE"]++
-		if common.HasQuorum(state.counter[msg_value + "E_PREPARE"], state.failures) {
-			state.counter[msg_value + "E_PREPARE"] = -30  // Ignore all future messages
+		interf, _ := state.counter_prepare.LoadOrStore(msg_value + "E_PREPARE", 0)
+		count := interf.(int) 
+		if common.HasQuorum(count + 1, state.failures) {
+			state.counter_prepare.Store(msg_value + "E_PREPARE", -30)
 			state.locks[prepare_key].Unlock()
 			// Sign the original value and send back
-			signed_msg := "signed"
-			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid ) + ";" + signed_msg
+			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid )
 			state.locks[promise_key].Lock()
-			state.counter[msg_value + "E_PROMISE"]++
+			interf, _ = state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
+			state.counter_promise.Store(msg_value + "E_PROMISE", interf.(int) + 1)
 			state.locks[promise_key].Unlock()
 			fmt.Printf("Quorum achieved for %s\n", message)
 			sendMessage(s, original_senderid, zone)
 		} else {
+			state.counter_prepare.Store(msg_value + "E_PREPARE", count + 1)
 			state.locks[prepare_key].Unlock()
 		}
 		
@@ -103,26 +107,32 @@ func (state *EndorsementState) HandleMessage(
 	case "E_PREPARE":
 		
 		state.locks[prepare_key].Lock()
-		state.counter[msg_value + "E_PREPARE"]++
-		if common.HasQuorum(state.counter[msg_value + "E_PREPARE"], state.failures) {
-			state.counter[msg_value + "E_PREPARE"] = -30  // Ignore all future messages
+		interf, _ := state.counter_prepare.LoadOrStore(msg_value + "E_PREPARE", 0)
+		count := interf.(int) 
+		if common.HasQuorum(count + 1, state.failures) {
+			state.counter_prepare.Store(msg_value + "E_PREPARE", -30)
 			state.locks[prepare_key].Unlock()
 			// Sign the original value and send back
 			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid )
 			state.locks[promise_key].Lock()
-			state.counter[msg_value + "E_PROMISE"]++
+			interf, _ = state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
+			state.counter_promise.Store(msg_value + "E_PROMISE", interf.(int) + 1)
+			// state.counter[msg_value + "E_PROMISE"]++
 			state.locks[promise_key].Unlock()
 			fmt.Printf("Quorum achieved for %s\n", message)
 			sendMessage(s, original_senderid, zone)
 		} else {
+			state.counter_prepare.Store(msg_value + "E_PREPARE", count + 1)
 			state.locks[prepare_key].Unlock()
 		}
+
 	case "E_PROMISE":
 		// signature := components[4] 
 		state.locks[promise_key].Lock()
-		state.counter[msg_value + "E_PROMISE"]++
-		if common.HasQuorum(state.counter[msg_value + "E_PROMISE"], state.failures) {
-			state.counter[msg_value + "E_PROMISE"] = -30  // Ignore all future messages
+		interf, _ := state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
+		count := interf.(int) 
+		if common.HasQuorum(count + 1, state.failures) {
+			state.counter_promise.Store(msg_value + "E_PROMISE", -30)
 			state.locks[promise_key].Unlock()
 			// Value has been committed
 			// Signal other channel
@@ -132,6 +142,7 @@ func (state *EndorsementState) HandleMessage(
 			}
 			// Endorsement achieved
 		} else {
+			state.counter_promise.Store(msg_value + "E_PROMISE", count + 1)
 			state.locks[promise_key].Unlock()
 		}
 

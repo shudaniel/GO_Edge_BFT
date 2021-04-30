@@ -9,7 +9,8 @@ import (
 
 
 type PbftState struct {
-	counter           sync.Map
+	counter_prepare           sync.Map
+	counter_commit           sync.Map
 	failures int
 	locks             map[string]*sync.Mutex
 	//localLog          []common.Message
@@ -22,7 +23,8 @@ func create_pbft_message(id string, msg_type string, message_val string) string 
 
 func NewPbftState(f int) *PbftState {
 	newState := PbftState{
-		counter:          	sync.Map{},
+		counter_prepare:          	sync.Map{},
+		counter_commit:          	sync.Map{},
 		locks:             make(map[string]*sync.Mutex),
 		failures: f,
 		//localLog:          make([]common.Message, 0),
@@ -74,24 +76,22 @@ func (state *PbftState) HandleMessage(
 	case "PRE_PREPARE":
 
 		state.locks[prepare_key].Lock()
-		interf, _ := state.counter.LoadOrStore(message_val + "PREPARE", 0)
+		interf, _ := state.counter_prepare.LoadOrStore(message_val + "PREPARE", 0)
 		count := interf.(int) 
-		// state.counter[message_val + "PREPARE"]++
 		if common.HasQuorum(count + 1, state.failures) {
-			state.counter.Store(message_val + "PREPARE", -30)
-			// state.counter[message_val + "PREPARE"] = -30
+			state.counter_prepare.Store(message_val + "PREPARE", -30)
 			state.locks[prepare_key].Unlock()	
 			
 			s := create_pbft_message(id, "COMMIT", message_val)
 			fmt.Printf("Quorum achieved for %s\n", message)
 			state.locks[commit_key].Lock()
-			interf, _ = state.counter.LoadOrStore(message_val + "COMMIT", 0)
-			state.counter.Store(message_val + "COMMIT", interf.(int) + 1)
+			interf, _ = state.counter_commit.LoadOrStore(message_val + "COMMIT", 0)
+			state.counter_commit.Store(message_val + "COMMIT", interf.(int) + 1)
 			// state.counter[message_val + "COMMIT"]++
 			state.locks[commit_key].Unlock()
 			go broadcast(s)
 		} else {
-			state.counter.Store(message_val + "PREPARE", count + 1)
+			state.counter_prepare.Store(message_val + "PREPARE", count + 1)
 			state.locks[prepare_key].Unlock()	
 		}
 		s := create_pbft_message(id, "PREPARE", message_val)
@@ -102,35 +102,35 @@ func (state *PbftState) HandleMessage(
 	case "PREPARE":
 		
 		state.locks[prepare_key].Lock()
-		interf, _ := state.counter.LoadOrStore(message_val + "PREPARE", 0)
+		interf, _ := state.counter_prepare.LoadOrStore(message_val + "PREPARE", 0)
 		count := interf.(int)
 		// state.counter[message_val + "PREPARE"]++
 		if common.HasQuorum(count + 1, state.failures) {
-			state.counter.Store(message_val + "PREPARE", -30)
+			state.counter_prepare.Store(message_val + "PREPARE", -30)
 		// if common.HasQuorum(state.counter[message_val + "PREPARE"], state.failures) {
 			// state.counter[message_val + "PREPARE"] = -30
 			state.locks[prepare_key].Unlock()	
 			s := create_pbft_message(id, "COMMIT", message_val)
 			fmt.Printf("Quorum achieved for %s\n", message)
 			state.locks[commit_key].Lock()
-			interf, _ = state.counter.LoadOrStore(message_val + "COMMIT", 0)
-			state.counter.Store(message_val + "COMMIT", interf.(int) + 1)
+			interf, _ = state.counter_commit.LoadOrStore(message_val + "COMMIT", 0)
+			state.counter_commit.Store(message_val + "COMMIT", interf.(int) + 1)
 			// state.counter[message_val + "COMMIT"]++
 			state.locks[commit_key].Unlock()
 			go broadcast(s)
 		} else {
-			state.counter.Store(message_val + "PREPARE", count + 1)
+			state.counter_prepare.Store(message_val + "PREPARE", count + 1)
 			state.locks[prepare_key].Unlock()	
 		}
 		// fmt.Printf("PREPARE_COUNT with key: %s : %v\n", message_val + "PREPARE", state.counter[message_val + "PREPARE"])
 	case "COMMIT":
 
 		state.locks[commit_key].Lock()
-		interf, _ := state.counter.LoadOrStore(message_val + "COMMIT", 0)
+		interf, _ := state.counter_commit.LoadOrStore(message_val + "COMMIT", 0)
 		count := interf.(int)
 		// state.counter[message_val + "COMMIT"]++
 		if common.HasQuorum(count + 1, state.failures) {
-			state.counter.Store(message_val + "COMMIT", -30)
+			state.counter_commit.Store(message_val + "COMMIT", -30)
 		// if common.HasQuorum(state.counter[message_val + "COMMIT"], state.failures) {
 			// state.counter[message_val + "COMMIT"] = -30
 			// Value has been committed
@@ -141,7 +141,7 @@ func (state *PbftState) HandleMessage(
 				ch <- true
 			}
 		} else {
-			state.counter.Store(message_val + "COMMIT", count + 1)
+			state.counter_commit.Store(message_val + "COMMIT", count + 1)
 			state.locks[commit_key].Unlock()
 		}
 
