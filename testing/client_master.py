@@ -23,9 +23,15 @@ start = input("Push any key to start")
 #         for addr in addresses:
 #             sock.sendto(reset_msg, (addr[0], addr[1]))
 
-time.sleep(5)
 
 
+for i in range(len(clients)):
+    startmsg = "start".encode('utf-8')
+    print(clients[i])
+    sock.sendto(startmsg, clients[i])
+
+time.sleep(10)
+start_time = time.time()
 for i in range(len(clients)):
     startmsg = "start".encode('utf-8')
     print(clients[i])
@@ -36,9 +42,9 @@ while True:
     endtime = time.time()
     msg = data.decode()
     print("Received times:", msg)
-    msg_split = msg.split(";")
+    msg_split = msg.split("|")
 
-    start_time = float(msg_split[1])
+    # start_time = float(msg_split[1])
 
     
     print("Total time:", endtime - start_time)

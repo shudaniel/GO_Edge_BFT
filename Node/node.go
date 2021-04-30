@@ -223,10 +223,8 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 	if !success {
 		fmt.Println("FAILED on", message)
 		total_time = 0.0
-		n.sendResponse("FAILURE", addr)
-	} else {
-		n.sendResponse(fmt.Sprintf("%f", total_time), addr)
-	}
+	} 
+	n.sendResponse(fmt.Sprintf("%f", total_time), addr)
 	// fmt.Println("Total time: %d", total_time)
 
 }

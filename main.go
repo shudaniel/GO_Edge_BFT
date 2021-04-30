@@ -28,7 +28,7 @@ func main() {
 	test["hello?"]++
 
 	fmt.Printf("%v\n", test["hello?"])
-
+	
 	argsWithoutProg := os.Args[1:]
 	for i, s := range argsWithoutProg {
 		switch s {
