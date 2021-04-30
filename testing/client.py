@@ -6,7 +6,7 @@ import time
 import json
 
 
-def client_thread(id, ip, port, num_transactions, percent, zone, primaries, times):
+def client_thread(id, ip, port, num_transactions, percent, zone, primaries, times, throughput_times):
     new_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     new_sock.bind((ip, port))
     client_id = ip + ":" + str(port) + ":" + str(id)
@@ -62,6 +62,7 @@ parser.add_argument("--numclients", "-c", type=int, default=1)
 parser.add_argument("--numtransactions", "-t", type=int, default=10)
 parser.add_argument("--percent", "-r", type=float, default=0.1)
 
+throughput_times = []
 times = []
 args = parser.parse_args()
 client_id_counter = 0

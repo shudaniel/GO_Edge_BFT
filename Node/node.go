@@ -4,6 +4,7 @@ import (
     "net"  
 	"EdgeBFT/pbft"
 	"EdgeBFT/endorsement"
+	"EdgeBFT/common"
 	"EdgeBFT/paxos"
 	"strconv"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"time"
 	"bufio"
 	"sync"
+	"math/rand"
+	"crypto/rsa"
 )
 
 var lock_mutex = &sync.Mutex{}
@@ -32,11 +35,15 @@ type node struct {
 	endorse_signals           map[string]chan bool
 	pbft_signals           map[string]chan bool
 	paxos_signals           map[string]chan bool
+	public_keys            map[string]*rsa.PublicKey
+	private_key            *rsa.PrivateKey
 	client_list map[string]bool
 	//localLog          []common.Message
 }
 
 func NewNode(ip string, port int, z string, f int) *node {
+
+	randbits := rand.Intn(100)
 
 	addr := net.UDPAddr{
         Port: port,
@@ -48,6 +55,8 @@ func NewNode(ip string, port int, z string, f int) *node {
         return nil
     }
 
+	priv_key, pub_key := common.GenerateKeyPair(randbits)
+
 
 	newNode := node{
 		directory:           make(map[string]map[string]*net.UDPAddr),
@@ -58,11 +67,15 @@ func NewNode(ip string, port int, z string, f int) *node {
 		id: 				 ip + ":" + strconv.Itoa(port),
 		sock:                ser,
 		msg_chan:           make(chan triple),
+		private_key:          priv_key,
+		public_keys:         make(map[string]*rsa.PublicKey),
 		endorse_signals:             make(map[string]chan bool),
 		pbft_signals:             make(map[string]chan bool),
 		paxos_signals:             make(map[string]chan bool),
+
 		client_list: make(map[string]bool),
 	}
+	newNode.public_keys[newNode.id] = pub_key
 
 	return &newNode
 }
@@ -79,6 +92,22 @@ func (n *node) reset() {
 
 }
 
+func (n *node) createJoinMessage(reply bool) string {
+	// Send over publickey as well
+
+	pubkey_bytes := common.PublicKeyToBytes( n.public_keys[n.id] )
+	pubkey_str := string(pubkey_bytes)
+
+	msg := n.id + "|" + n.zone + "|" + pubkey_str 
+	if reply {
+		msg = "JOIN|" + msg
+	} else {
+		msg = "JOIN_NOREPLY|" + msg
+	}
+
+	return msg
+}
+
 func (n *node) joinNetwork() {
 	file, err := os.Open("addresses.txt")
 	if err != nil {
@@ -87,7 +116,7 @@ func (n *node) joinNetwork() {
 		return
 	}
 
-	join_msg := "JOIN|" + n.id + "|" + n.zone
+	join_msg := n.createJoinMessage(true)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -139,17 +168,20 @@ func(n *node) sendToNode(msg string, nodeid string, zone string) {
 func (n *node) handleJoin(message_components []string, addr *net.UDPAddr, reply bool) {
 	nodeid := message_components[1]
 	zone := message_components[2]
+	pubkey := message_components[3]
+	pubkey_bytes := []byte(pubkey)
+
 
 	lock_mutex.Lock()
 	if _, ok := n.directory[zone]; !ok {
 		n.directory[zone] = make(map[string]*net.UDPAddr)
 	}
-	
+	n.public_keys[nodeid] = common.BytesToPublicKey(pubkey_bytes)
 	n.directory[zone][nodeid] = addr
 	lock_mutex.Unlock()
 	
 	if reply {
-		reply_msg := "JOIN_NOREPLY|" + n.id + "|" + n.zone
+		reply_msg := n.createJoinMessage(false)
 		n.sendResponse(reply_msg, addr)
 	}
 }
@@ -211,8 +243,10 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 	msg_type := components[0]
 	switch msg_type {
 	case "JOIN":
+		fmt.Printf("Received: %s \n", message)
 		n.handleJoin(components, addr, true)
 	case "JOIN_NOREPLY":
+		fmt.Printf("Received: %s \n", message)
 		n.handleJoin(components, addr, false)
 	case "CLIENT_JOIN":
 		clientid := components[1]
@@ -223,7 +257,7 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 		n.handleClientRequest(request_msg, addr)
 	case "ENDORSE":
 		endorse_msg := components[1]
-		n.endorse_state.HandleMessage(endorse_msg, n.broadcastToZone, n.sendToNode, n.zone, n.id, n.endorse_signals)
+		n.endorse_state.HandleMessage(endorse_msg, n.broadcastToZone, n.sendToNode, n.zone, n.id, n.endorse_signals, n.public_keys, n.private_key)
 	case "PAXOS":
 		paxos_msg := components[1]
 		n.paxos_state.HandleMessage(paxos_msg, n.broadcastInterzonal, n.broadcastToZone, n.sendToNode, n.id, n.paxos_signals, n.endorse_signals, n.endorse_state)

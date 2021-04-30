@@ -4,6 +4,7 @@ import (
 	"EdgeBFT/common"
 	"strings"
 	"sync"
+	"crypto/rsa"
 )
 
 type EndorsementState struct {
@@ -26,7 +27,7 @@ func NewEndorseState(f int) *EndorsementState {
 }
 
 func createEndorseMsg(msg_type string, message string, nodeid string, original_senderid string, clientid string) string {
-	return "ENDORSE|"  + msg_type + ";" + nodeid +  ";" + original_senderid + ";" + clientid + ";" + message + ";end"
+	return "ENDORSE|"  + msg_type + ";" + nodeid +  ";" + original_senderid + ";" + clientid + ";" + message 
 }
 
 func (state *EndorsementState) GetF() int {
@@ -64,9 +65,12 @@ func (state *EndorsementState) HandleMessage(
 	zone string,
 	id string,
 	signals map[string]chan bool,
+	public_keys map[string]*rsa.PublicKey,
+	priv *rsa.PrivateKey,
 ) {
 	components := strings.Split(message, ";")
 	msg_type := components[0]
+	nodeid := components[1]
 	original_senderid := components[2]
 	clientid := components[3]
 	msg_value := components[4]
@@ -112,7 +116,10 @@ func (state *EndorsementState) HandleMessage(
 			state.counter_prepare.Store(msg_value + "E_PREPARE", -30)
 			state.locks[prepare_key].Unlock()
 			// Sign the original value and send back
-			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid )
+
+			signed_msg := common.SignWithPrivateKey( []byte(msg_value), priv)
+
+			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid ) + ";" + string(signed_msg)
 			state.locks[promise_key].Lock()
 			interf, _ = state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
 			state.counter_promise.Store(msg_value + "E_PROMISE", interf.(int) + 1)
@@ -127,6 +134,12 @@ func (state *EndorsementState) HandleMessage(
 
 	case "E_PROMISE":
 		// signature := components[4] 
+		// First, verify the message
+		signature := []byte(components[5])
+		if !common.VerifyWithPublicKey([]byte(msg_value), signature, public_keys[nodeid] ) {
+			return
+		}
+
 		state.locks[promise_key].Lock()
 		interf, _ := state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
 		count := interf.(int) 
