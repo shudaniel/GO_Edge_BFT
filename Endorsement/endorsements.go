@@ -88,7 +88,7 @@ func (state *EndorsementState) HandleMessage(
 			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid ) + ";" + signed_msg
 			state.locks[promise_key].Lock()
 			state.counter[msg_value + "E_PROMISE"]++
-			state.locks[prepare_key].Unlock()
+			state.locks[promise_key].Unlock()
 			fmt.Printf("Quorum achieved for %s\n", message)
 			sendMessage(s, original_senderid, zone)
 		} else {
