@@ -10,7 +10,10 @@ import (
 	"os"
 	"time"
 	"bufio"
+	"sync"
 )
+
+var lock_mutex = &sync.Mutex{}
 
 type triple struct {
 	Msg string
@@ -150,6 +153,7 @@ func (n *node) handleJoin(message_components []string, addr *net.UDPAddr, reply 
 }
 
 func (n *node) handleClientJoin(clientid string, zone string) {
+	lock_mutex.Lock()
 	if n.zone == zone {
 		fmt.Printf("Client joining: %s\n", clientid)
 		n.client_list[clientid] = true
@@ -158,6 +162,7 @@ func (n *node) handleClientJoin(clientid string, zone string) {
 	n.pbft_state.AddLock(clientid)
 	n.endorse_state.AddLock(clientid)
 	n.paxos_state.AddLock(clientid)
+	lock_mutex.Unlock()
 }
 
 func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
