@@ -25,7 +25,7 @@ start = input("Push any key to start")
 
 time.sleep(5)
 
-starttime = time.time()
+
 for i in range(len(clients)):
     startmsg = "start".encode('utf-8')
     print(clients[i])
@@ -33,7 +33,12 @@ for i in range(len(clients)):
 
 while True:
     data, addr = sock.recvfrom(1024)
-    print("Received times:", data.decode())
-
     endtime = time.time()
-    print("Total time:", endtime - starttime)
+    msg = data.decode()
+    print("Received times:", msg)
+    msg_split = msg.split(";")
+
+    start_time = float(msg_split[1])
+
+    
+    print("Total time:", endtime - start_time)
