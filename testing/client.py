@@ -20,9 +20,7 @@ def client_thread(id, ip, port, num_transactions, percent, zone, primaries, time
             ip_addr, port = line.split(" ")
             print(ip_addr, port)
             sock.sendto(clientjoin_msg.encode('utf-8'), (ip_addr, int(port)))
-    
-    sem.release()
-    
+        
     time.sleep(10)
     num_global = 0
 
@@ -90,11 +88,7 @@ data, addr = sock.recvfrom(1024) # Wait for start signal
 # start = input("Press to start"
 
 for i in range(num_clients):
-    client_threads[i].start()
-
-for i in range(num_clients):
-    sem.acquire()
-
+    client_threads[i].start() 
 
 for i in range(num_clients):
     client_threads[i].join()
