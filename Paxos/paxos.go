@@ -4,6 +4,7 @@ import (
 	"strings"
 	"EdgeBFT/endorsement"
 	"sync"
+	"fmt"
 )
 
 type PaxosState struct {
@@ -14,7 +15,7 @@ type PaxosState struct {
 }
 
 func create_paxos_message(id string, msg_type string, message_val string, clientid string, zone string) string {
-	s := msg_type + "/" + id + "/" + clientid + "/" + zone + "/" + message_val + ""
+	s := msg_type + "/" + id + "/" + clientid + "/" + zone + "/" + message_val 
 	return s
 }
 
@@ -45,23 +46,29 @@ func (state *PaxosState) Run(
 	ch <-chan bool,
 	broadcast func(string),
 	localbroadcast func(string),
-	endorsement_signals map[string]chan bool,
+	endorsement_signals map[string]chan string,
 	e_state *endorsement.EndorsementState,
 ) bool {
 
 	// fmt.Println("Need endorsement first")
 	preprepare_msg := create_paxos_message(id, "ACCEPT", message, clientid, zone)
 	
-	if e_state.Run( preprepare_msg, id, clientid, endorsement_signals[clientid], localbroadcast ) {
-		// fmt.Println("Got endorsement")
-		// Get endorsement for this message
-		// Do not send message to yourself. Just ack it immediately
-		
-		go broadcast( "PAXOS|" + preprepare_msg)
-		committed := <-ch
-		return committed
+	signatures := e_state.Run( preprepare_msg, id, clientid, endorsement_signals[clientid], localbroadcast )
+	
+
+	// fmt.Println("Got endorsement")
+	// Get endorsement for this message
+	// Do not send message to yourself. Just ack it immediately
+	
+	go broadcast( "PAXOS|" + preprepare_msg + "/" + signatures )
+	committed := <-ch
+	if !committed {
+		fmt.Println("Paxos failed???")
 	}
-	return false
+
+	return committed
+	
+	return true
 }
 
 func (state *PaxosState) HandleShareMessage(message string) {
@@ -76,7 +83,7 @@ func (state *PaxosState) HandleMessage(
 	sendMessage func (string, string, string),
 	id string,
 	signals map[string]chan bool,
-	endorsement_signals map[string]chan bool,
+	endorsement_signals map[string]chan string,
 	e_state *endorsement.EndorsementState,
 ) {
 	components := strings.Split(message, "/")
@@ -95,10 +102,10 @@ func (state *PaxosState) HandleMessage(
 
 	case "ACCEPT":
 		s := create_paxos_message(id, "ACCEPTACK", message_val, clientid, zone)
+		signatures := e_state.Run(s, id, clientid, endorsement_signals[clientid], localbroadcast)
+	
+		go sendMessage("PAXOS|" + s + "/" + signatures, sender_id,zone)
 		
-		if e_state.Run(s, id, clientid, endorsement_signals[clientid], localbroadcast) {
-			go sendMessage("PAXOS|" + s, sender_id,zone)
-		}
 	case "ACCEPTACK":
 		state.locks[acceptack_key].Lock()
 		interf, _ := state.counter.LoadOrStore(message_val, 0)
@@ -108,12 +115,16 @@ func (state *PaxosState) HandleMessage(
 			state.locks[acceptack_key].Unlock()
 			s := create_paxos_message(id, "PAXOS_COMMIT", message_val, clientid, zone)
 			// Run endorsement for commit message
-			go func(s string, id string, clientid string,endorsement_signals map[string]chan bool, e_state *endorsement.EndorsementState, localbroadcast func(string), broadcast func(string)) {
-				if e_state.Run( s, id, clientid, endorsement_signals[clientid], localbroadcast ) {
-					broadcast("PAXOS|" + s)
-				}
-			} (s, id, clientid, endorsement_signals, e_state, localbroadcast, broadcast)
+			new_chan := make(chan bool)
+			go func(ch chan bool, s string, id string, clientid string,endorsement_signals map[string]chan string, e_state *endorsement.EndorsementState, localbroadcast func(string), broadcast func(string)) {
+				signatures := e_state.Run( s, id, clientid, endorsement_signals[clientid], localbroadcast )
+			
+				ch<-true
+				broadcast("PAXOS|" + s + "/" + signatures)
+				
+			} (new_chan, s, id, clientid, endorsement_signals, e_state, localbroadcast, broadcast)
 			// fmt.Printf("Quorum achieved for %s\n", message)
+			<-new_chan
 			signals[clientid] <- true
 		} else {
 			state.counter.Store(message_val, count + 1)

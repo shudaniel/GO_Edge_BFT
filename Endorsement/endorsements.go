@@ -12,6 +12,7 @@ import (
 type EndorsementState struct {
 	counter_prepare           sync.Map
 	counter_promise           sync.Map
+	signatures                map[string][]string
 	failures          int
 	locks             map[string]*sync.Mutex
 }
@@ -20,6 +21,7 @@ func NewEndorseState(f int) *EndorsementState {
 	newState := EndorsementState{
 		counter_prepare:          	sync.Map{},
 		counter_promise:          	sync.Map{},
+		signatures: make(map[string][]string),
 		locks:  make(map[string]*sync.Mutex),
 		failures: f,
 		//localLog:          make([]common.Message, 0),
@@ -37,6 +39,7 @@ func (state *EndorsementState) GetF() int {
 }
 
 func (state *EndorsementState) Initialize(clientid string ) {
+	state.signatures[clientid] = []string{"", "", ""}
 	state.locks[clientid + "E_PREPARE"] = &sync.Mutex{}
 	state.locks[clientid + "E_PROMISE"] = &sync.Mutex{}
 }
@@ -46,18 +49,20 @@ func (state *EndorsementState) Run(
 	message string, 
 	id string, 
 	clientid string,
-	ch <-chan bool,
+	ch <-chan string,
 	broadcast func(string),
 
-) bool {
+) string {
 
 
 	preprepare_msg := createEndorseMsg("E_PRE_PREPARE", message, id, id, clientid)
 	
 	// fmt.Printf("E_PREPARE_COUNT before sending preprepares with key: %s : %v\n", message + "E_PREPARE", state.counter[message + "E_PREPARE"])
 	go broadcast(preprepare_msg)
-	committed := <-ch
-	return committed	
+	signatures := <-ch
+
+
+	return signatures	
 }
 
 func (state *EndorsementState) HandleMessage(
@@ -66,7 +71,7 @@ func (state *EndorsementState) HandleMessage(
 	sendMessage func(string, string, string),
 	zone string,
 	id string,
-	signals map[string]chan bool,
+	signals map[string]chan string,
 	public_keys map[string]*rsa.PublicKey,
 	priv *rsa.PrivateKey,
 ) {
@@ -127,17 +132,26 @@ func (state *EndorsementState) HandleMessage(
 		interf, _ := state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
 		count := interf.(int) 
 		if common.HasQuorum(count + 1, state.failures) {
+			state.signatures[clientid][count] = components[5]
 			state.counter_promise.Store(msg_value + "E_PROMISE", -30)
+			signatures_str := strings.Join(state.signatures[clientid], "/")
+			state.signatures[clientid][0] = ""
+			state.signatures[clientid][1] = ""
+			state.signatures[clientid][2] = ""
 			state.locks[promise_key].Unlock()
+
 			// Value has been committed
 			// Signal other channel
 			if ch, ok := signals[clientid]; ok {
 				// fmt.Printf("Quorum achieved for endorsement %s\n", message)
-				ch <- true
+				ch <- signatures_str
 			}
 			// Endorsement achieved
 		} else {
 			state.counter_promise.Store(msg_value + "E_PROMISE", count + 1)
+			if count >= 0 { 
+				state.signatures[clientid][count] = components[5]
+			}
 			state.locks[promise_key].Unlock()
 		}
 

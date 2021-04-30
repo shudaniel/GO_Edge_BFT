@@ -33,7 +33,7 @@ type node struct {
 	id                string
 	zone              string
 	msg_chan          chan triple
-	endorse_signals           map[string]chan bool
+	endorse_signals           map[string]chan string
 	pbft_signals           map[string]chan bool
 	paxos_signals           map[string]chan bool
 	public_keys            map[string]*rsa.PublicKey
@@ -70,7 +70,7 @@ func NewNode(ip string, port int, z string, f int) *node {
 		msg_chan:           make(chan triple),
 		private_key:          priv_key,
 		public_keys:         make(map[string]*rsa.PublicKey),
-		endorse_signals:             make(map[string]chan bool),
+		endorse_signals:             make(map[string]chan string),
 		pbft_signals:             make(map[string]chan bool),
 		paxos_signals:             make(map[string]chan bool),
 
@@ -83,11 +83,11 @@ func NewNode(ip string, port int, z string, f int) *node {
 
 func (n *node) reset() {
 	fmt.Println("RESET")
-	n.pbft_state = pbft.NewPbftState( n.pbft_state.GetF() )
-	n.endorse_state = endorsement.NewEndorseState(n.endorse_state.GetF())
-	n.paxos_state = paxos.NewPaxosState()
+	// n.pbft_state = pbft.NewPbftState( n.pbft_state.GetF() )
+	// n.endorse_state = endorsement.NewEndorseState(n.endorse_state.GetF())
+	// n.paxos_state = paxos.NewPaxosState()
 
-	n.endorse_signals = make(map[string]chan bool)
+	n.endorse_signals = make(map[string]chan string)
 	n.pbft_signals = make(map[string]chan bool)
 	n.paxos_signals = make(map[string]chan bool)
 
@@ -197,7 +197,7 @@ func (n *node) handleClientJoin(clientid string, zone string) {
 	}
 	n.pbft_signals[clientid] = make(chan bool)
 	n.paxos_signals[clientid] = make(chan bool)
-	n.endorse_signals[clientid] = make(chan bool)
+	n.endorse_signals[clientid] = make(chan string)
 	fmt.Printf("Client locks created: %s\n", zone)
 	n.pbft_state.Initialize(clientid)
 	n.endorse_state.Initialize(clientid)
@@ -221,10 +221,13 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 	difference := end.Sub(start)
 	total_time := difference.Seconds() 
 	if !success {
+		fmt.Println("FAILED on", message)
 		total_time = 0.0
+		n.sendResponse("FAILURE", addr)
+	} else {
+		n.sendResponse(fmt.Sprintf("%f", total_time), addr)
 	}
 	// fmt.Println("Total time: %d", total_time)
-	n.sendResponse(fmt.Sprintf("%f", total_time), addr)
 
 }
 
@@ -280,7 +283,7 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 
 func (n *node) listen() {
 	for {
-		p := make([]byte, 4096)
+		p := make([]byte, 8192)
         _,remoteaddr,err := n.sock.ReadFromUDP(p)
         // fmt.Printf("Read a message (%d) %s \n", len, p)
 		n.msg_chan <- triple{

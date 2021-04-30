@@ -48,11 +48,12 @@ def client_thread(id, ip, port, num_transactions, percent, zone, primaries, time
         data, addr = new_sock.recvfrom(1024)
         end = time.time()
         total_time = end - start
-        reply = float(data.decode()[:-1])
+
+        reply = data.decode()[:-1]
         print("Received reply", reply, total_time, msgtype)
         
-        if reply > 0:
-            times.append(reply)
+        if reply != "FAILURE":
+            times.append(float(reply))
     start_times.append(clientstart)
 
 

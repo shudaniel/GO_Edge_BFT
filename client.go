@@ -8,8 +8,11 @@ import (
 	"strings"
 )
 
+func client_thread() {
+	
+}
+
 func main() {
-	client_id := "1231231"
 	client_join := "CLIENT_JOIN|" + client_id + "|0*"
 	client_request := "CLIENT_REQUEST|" + client_id + "!10!2*"
     p :=  make([]byte, 2048)
