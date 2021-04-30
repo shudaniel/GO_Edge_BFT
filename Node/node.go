@@ -126,9 +126,9 @@ func (n *node) broadcastToZone(msg string) {
 	}
 }
 
-func(n *node) sendToNode(msg string, nodeid string) {
+func(n *node) sendToNode(msg string, nodeid string, zone string) {
 	// Send message to one node in your zone, if node with nodeid exists
-	if addr, ok := n.directory[n.zone][nodeid]; ok {
+	if addr, ok := n.directory[zone][nodeid]; ok {
 		n.sendResponse(msg, addr)
 	}
 }
@@ -172,10 +172,10 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 	} else {
 		// fmt.Println("%s not is in client list", client_id)
 		n.paxos_signals[client_id] = make(chan bool)
-		success = n.paxos_state.Run(message, n.id, client_id, n.paxos_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state)
+		success = n.paxos_state.Run(message, n.id, n.zone, client_id, n.paxos_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state)
 	}
 	end := time.Now()
-	difference := start.Sub(end)
+	difference := end.Sub(start)
 	total_time := difference.Seconds() 
 	if !success {
 		total_time = 0.0
@@ -215,10 +215,10 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 		n.handleClientRequest(request_msg, addr)
 	case "ENDORSE":
 		endorse_msg := components[1]
-		go n.endorse_state.HandleMessage(endorse_msg, n.broadcastToZone, n.sendToNode, n.id, n.endorse_signals)
+		go n.endorse_state.HandleMessage(endorse_msg, n.broadcastToZone, n.sendToNode, n.zone, n.id, n.endorse_signals)
 	case "PAXOS":
 		paxos_msg := components[1]
-		go n.paxos_state.HandleMessage(paxos_msg, n.broadcastInterzonal, n.broadcastToZone, n.id, n.paxos_signals, n.endorse_signals, n.endorse_state)
+		go n.paxos_state.HandleMessage(paxos_msg, n.broadcastInterzonal, n.broadcastToZone, n.sendToNode, n.id, n.paxos_signals, n.endorse_signals, n.endorse_state)
 	case "PBFT":
 		pbft_msg := components[1]
 		go n.pbft_state.HandleMessage(pbft_msg, n.broadcastToZone ,n.id, n.pbft_signals)
@@ -231,7 +231,7 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 
 func (n *node) listen() {
 	for {
-		p := make([]byte, 2048)
+		p := make([]byte, 4096)
         _,remoteaddr,err := n.sock.ReadFromUDP(p)
         // fmt.Printf("Read a message from %v %s \n", remoteaddr, p)
 		n.msg_chan <- triple{

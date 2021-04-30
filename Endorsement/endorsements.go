@@ -59,7 +59,8 @@ func (state *EndorsementState) Run(
 func (state *EndorsementState) HandleMessage(
 	message string,
 	broadcast func(string),
-	sendMessage func(string, string),
+	sendMessage func(string, string, string),
+	zone string,
 	id string,
 	signals map[string]chan bool,
 ) {
@@ -89,7 +90,7 @@ func (state *EndorsementState) HandleMessage(
 			state.counter[msg_value + "E_PROMISE"]++
 			state.locks[prepare_key].Unlock()
 			fmt.Printf("Quorum achieved for %s\n", message)
-			sendMessage(s, original_senderid)
+			sendMessage(s, original_senderid, zone)
 		} else {
 			state.locks[prepare_key].Unlock()
 		}
@@ -107,13 +108,12 @@ func (state *EndorsementState) HandleMessage(
 			state.counter[msg_value + "E_PREPARE"] = -30  // Ignore all future messages
 			state.locks[prepare_key].Unlock()
 			// Sign the original value and send back
-			signed_msg := "signed"
-			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid ) + ";" + signed_msg
+			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid )
 			state.locks[promise_key].Lock()
 			state.counter[msg_value + "E_PROMISE"]++
 			state.locks[promise_key].Unlock()
 			fmt.Printf("Quorum achieved for %s\n", message)
-			sendMessage(s, original_senderid)
+			sendMessage(s, original_senderid, zone)
 		} else {
 			state.locks[prepare_key].Unlock()
 		}
