@@ -9,6 +9,7 @@ import (
 type PaxosState struct {
 	counter           sync.Map
 	locks             map[string]*sync.Mutex
+	
 	//localLog          []common.Message
 }
 
@@ -21,6 +22,7 @@ func NewPaxosState() *PaxosState {
 	newState := PaxosState{
 		counter:           sync.Map{},
 		locks:             make(map[string]*sync.Mutex),
+		signatures:        make(map[string][]string),
 		//localLog:          make([]common.Message, 0),
 	}
 
