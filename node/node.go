@@ -224,6 +224,7 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 	var success bool
 	start := time.Now()
 	ch := make(chan bool)
+	txn_type := "l"
 	
 	if n.client_list[client_id] {
 		// fmt.Println("%s is in client list", client_id)
@@ -235,6 +236,7 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 		} (message, n.id, client_id,  n.pbft_signals[client_id] ,n.broadcastToZone, ch)
 		
 	} else {
+		txn_type = "g"
 		go func(message string, id string, zone string, client_id string, ch <-chan bool, broadcast func(string), localbroadcast func(string), endorse_signals map[string]chan string, state *endorsement.EndorsementState, result chan bool) {
 
 			success := n.paxos_state.Run(message, id, zone, client_id, ch, broadcast, localbroadcast, endorse_signals, state)
@@ -256,7 +258,7 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 	total_time := difference.Seconds() 
 	
 	if !success {
-		fmt.Println("FAILED on", message)
+		fmt.Println("FAILED on", message, txn_type)
 		total_time = 0.0
 	} 
 	n.sendResponse(fmt.Sprintf("%f", total_time), addr)
