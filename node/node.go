@@ -20,11 +20,11 @@ var lock_mutex = &sync.Mutex{}
 
 type triple struct {
 	Msg string
-	Conn *net.TCPConn
+	Conn net.TCPConn
 }
 
 type node struct {
-	directory		  map[string]map[string]*net.TCPConn
+	directory		  map[string]map[string]net.TCPConn
 	pbft_state        *pbft.PbftState
 	endorse_state        *endorsement.EndorsementState
 	paxos_state        *paxos.PaxosState
@@ -49,7 +49,7 @@ func NewNode(ip string, port int, z string, f int) *node {
 
 
 	newNode := node{
-		directory:           make(map[string]map[string]*net.TCPConn),
+		directory:           make(map[string]map[string]net.TCPConn),
 		pbft_state:          pbft.NewPbftState(f),
 		endorse_state:       endorsement.NewEndorseState(f),
 		paxos_state:          paxos.NewPaxosState(),
@@ -146,8 +146,8 @@ func (n *node) joinNetwork() {
         if err != nil {
             fmt.Println(err)
         } else {
-			n.sendResponse(join_msg, c)
-			go n.handleConnection(c, n.msg_chan)
+			n.sendResponse(join_msg, *c)
+			go n.handleConnection(*c, n.msg_chan)
 		}
 
 	}
@@ -183,7 +183,7 @@ func(n *node) sendToNode(msg string, nodeid string, zone string) {
 	}
 }
 
-func (n *node) handleJoin(message_components []string, conn *net.TCPConn, reply bool) {
+func (n *node) handleJoin(message_components []string, conn net.TCPConn, reply bool) {
 	nodeid := message_components[1]
 	zone := message_components[2]
 	pubkey := message_components[3]
@@ -194,7 +194,7 @@ func (n *node) handleJoin(message_components []string, conn *net.TCPConn, reply 
 
 	lock_mutex.Lock()
 	if _, ok := n.directory[zone]; !ok {
-		n.directory[zone] = make(map[string]*net.TCPConn)
+		n.directory[zone] = make(map[string]net.TCPConn)
 	}
 	n.public_keys[nodeid] = common.BytesToPublicKey(pubkey_bytes)
 	n.directory[zone][nodeid] = conn
@@ -222,7 +222,7 @@ func (n *node) handleClientJoin(clientid string, zone string) {
 	lock_mutex.Unlock()
 }
 
-func (n *node) handleClientRequest(message string, conn *net.TCPConn) {
+func (n *node) handleClientRequest(message string, conn net.TCPConn) {
 	components := strings.Split(message, "!")
 	client_id := components[0]
 	var success bool
@@ -258,7 +258,7 @@ func (n *node) broadcastInterzonal(message string) {
 	}
 }
 
-func (n *node) handleMessage(message string, conn *net.TCPConn) {
+func (n *node) handleMessage(message string, conn net.TCPConn) {
 	components := strings.Split(message, "|")
 	// fmt.Printf("Received: %s \n", message)
 	msg_type := components[0]
@@ -295,11 +295,11 @@ func (n *node) handleMessage(message string, conn *net.TCPConn) {
 
 }
 
-func (n *node)  handleConnection(c *net.TCPConn, msg_chan chan triple) {
+func (n *node)  handleConnection(c net.TCPConn, msg_chan chan triple) {
 	// fmt.Printf("Serving %s\n", c.RemoteAddr().String())
 	for {
 			p := make([]byte, 8192)
-			len, err := (*c).Read(p)
+			len, err := c.Read(p)
 			// netData, err := bufio.NewReader(c).ReadString('*')
 	
 			if err == nil && len > 0 {
@@ -311,9 +311,9 @@ func (n *node)  handleConnection(c *net.TCPConn, msg_chan chan triple) {
 			}
 
 			// result := strconv.Itoa(random()) + "\n"
-			// c.Write([]byte(string(result)))
+			c.Write([]byte(string("hello")))
 	}
-	(*c).Close()
+	c.Close()
 }
 
 func (n *node) listen( sock *net.TCPListener, msg_chan chan triple ) {
@@ -337,16 +337,16 @@ func (n *node) listen( sock *net.TCPListener, msg_chan chan triple ) {
             fmt.Println(err)
         }
         // fmt.Println("Calling handleConnection")
-        go n.handleConnection(conn, msg_chan)
+        go n.handleConnection(*conn, msg_chan)
     }
 }
 
-func (n *node) sendResponse(message string, c *net.TCPConn) {
+func (n *node) sendResponse(message string, c net.TCPConn) {
 	// fmt.Printf("Sending: %s \n", message)
 
 	
 	// _,err := n.sock.WriteToUDP([]byte(message + "*"), addr)
-	_,err := (*c).Write([]byte(string(message + "*")))
+	_,err := c.Write([]byte(string(message + "*")))
 	if err != nil {
 		fmt.Printf("Couldn't send response %v", err)
 	}
