@@ -85,10 +85,14 @@ func (state *EndorsementState) HandleMessage(
 	prepare_key := clientid + "E_PREPARE"
 	promise_key := clientid + "E_PROMISE"
 
+	achieve_prepare_quorum := false
+	signature_str := ""
 	switch msg_type {
 
 
 	case "E_PRE_PREPARE":
+		s := createEndorseMsg( "E_PREPARE", msg_value, id, original_senderid, clientid )
+		broadcast(s)
 		fallthrough
 	case "E_PREPARE":
 		
@@ -98,41 +102,44 @@ func (state *EndorsementState) HandleMessage(
 		if common.HasQuorum(count + 1, state.failures) {
 			state.counter_prepare.Store(msg_value + "E_PREPARE", -30)
 			state.locks[prepare_key].Unlock()
+
 			// Sign the original value and send back
 
 			signed_msg := common.SignWithPrivateKey( []byte(msg_value), priv)
+			signature_str = hex.EncodeToString(signed_msg)
 			// fmt.Println("Signed", msg_value, "by", id, ". LENGTH:", len(msg_value))
-			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid ) + ";" + hex.EncodeToString(signed_msg)
-			state.locks[promise_key].Lock()
-			interf, _ = state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
-			state.counter_promise.Store(msg_value + "E_PROMISE", interf.(int) + 1)
-			// state.counter[msg_value + "E_PROMISE"]++
-			state.locks[promise_key].Unlock()
-			// fmt.Printf("Quorum achieved for %s\n", message)
+			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid ) + ";" + signature_str
 			sendMessage(s, original_senderid, zone)
+			achieve_prepare_quorum = true
+
+			// state.locks[promise_key].Lock()
+			// interf, _ = state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
+			// state.counter_promise.Store(msg_value + "E_PROMISE", interf.(int) + 1)
+			// state.locks[promise_key].Unlock()
+			// fmt.Printf("Quorum achieved for %s\n", message)
+			
 		} else {
 			state.counter_prepare.Store(msg_value + "E_PREPARE", count + 1)
 			state.locks[prepare_key].Unlock()
 		}
 
-		if msg_type == "E_PRE_PREPARE" { 
-			s := createEndorseMsg( "E_PREPARE", msg_value, id, original_senderid, clientid )
-			broadcast(s)
-		}
 	case "E_PROMISE":
 		// signature := components[4] 
 		// First, verify the message
-		signature, err := hex.DecodeString(components[5])
-		if err != nil || !common.VerifyWithPublicKey([]byte(msg_value), signature, public_keys[nodeid] ) {
+		cipher, err := hex.DecodeString(components[5])
+		if err != nil || !common.VerifyWithPublicKey([]byte(msg_value), cipher, public_keys[nodeid] ) {
 			fmt.Println("Failed verification for", msg_value, "from", nodeid, ". LENGTH:", len(msg_value))
 			return
 		}
+		signature_str = components[5]
+	}
+	if msg_type == "E_PROMISE" || achieve_prepare_quorum {
 
 		state.locks[promise_key].Lock()
 		interf, _ := state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
 		count := interf.(int) 
 		if common.HasQuorum(count + 1, state.failures) {
-			state.signatures[clientid][count] = components[5]
+			state.signatures[clientid][count + 1] = signature_str
 			state.counter_promise.Store(msg_value + "E_PROMISE", -30)
 			signatures_str := strings.Join(state.signatures[clientid], "/")
 			state.signatures[clientid][0] = ""
