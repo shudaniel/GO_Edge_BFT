@@ -142,6 +142,8 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 			l.times = append(l.times, latency_time)
 			lock_mutex.Unlock()
 			summation_ch <-latency_time
+		} else {
+			fmt.Print("Failure on", client_request)
 		}
 	}
 
