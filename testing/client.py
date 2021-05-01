@@ -6,7 +6,7 @@ import time
 import json
 
 
-def client_thread(id, ip, port, num_transactions, percent, zone, primaries, times, start_times):
+def client_thread(id, ip, port, num_transactions, percent, zone, primaries, times, start_times, sem):
     new_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     new_sock.bind((ip, port))
     client_id = ip + ":" + str(port) + ":" + str(id)
@@ -21,8 +21,8 @@ def client_thread(id, ip, port, num_transactions, percent, zone, primaries, time
             print(ip_addr, port)
             sock.sendto(clientjoin_msg.encode('utf-8'), (ip_addr, int(port)))
         
-    time.sleep(10)
     num_global = 0
+    sem.acquire()
 
     num_local = 0
     clientstart = time.time()
@@ -73,6 +73,8 @@ num_transactions = args.numtransactions
 client_threads = []
 num_clients = args.numclients
 
+semaphores = []
+
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((args.address, args.port))
 
@@ -81,7 +83,9 @@ with open("primaries.json", "r") as readfile:
     primaries = json.loads(readfile.read())
 
 for i in range(num_clients):
-    new_thread = threading.Thread(target=client_thread, args=(i, args.address, args.port + i + 1, num_transactions, args.percent, args.zone, primaries, times, starttimes))
+    sem = threading.Semaphore(0)
+    semaphores.append(sem)
+    new_thread = threading.Thread(target=client_thread, args=(i, args.address, args.port + i + 1, num_transactions, args.percent, args.zone, primaries, times, starttimes, sem))
     client_threads.append(new_thread)
 
 # start = input("input")
@@ -90,6 +94,10 @@ data, addr = sock.recvfrom(1024) # Wait for start signal
 
 for i in range(num_clients):
     client_threads[i].start() 
+
+data, addr = sock.recvfrom(1024) # Wait for 2nd start signal
+for i in range(num_clients):
+    semaphores[i].release()
 
 for i in range(num_clients):
     client_threads[i].join()
