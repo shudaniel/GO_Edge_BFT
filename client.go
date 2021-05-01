@@ -26,7 +26,7 @@ type Latencies struct {
 type Address struct {
 	Zone string
 	Ip string
-	Port string
+	Port int
 }
 
 type Primaries struct {
@@ -83,7 +83,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 	for j := 0; j < len(addresses); j++ {
 
 		if addresses[j].Zone == zone {
-			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + strconv.Itoa(addresses[j].Port + 14) )
+			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + strconv.Itoa( (addresses[j].Port + 14) ))
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -91,7 +91,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 			directory["local"] = conn2
 		}
 		if addresses[j].Zone == "0" {
-			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + strconv.Itoa(addresses[j].Port + 15) )
+			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + strconv.Itoa( (addresses[j].Port + 15) ))
 			if err != nil {
 				fmt.Println(err)
 				return
