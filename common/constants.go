@@ -1,5 +1,9 @@
 package common
 
+// import (
+// 	"time"
+// )
+
 const (
 	TIMEOUT = 4
 )
@@ -7,3 +11,8 @@ const (
 func HasQuorum(count int, f int) bool {
 	return count >= (2*f)  // Subtract one from 2f + 1 because you can count that you already voted for yourself
 }
+
+// func Timeout(duration int, ch chan bool) {
+// 	time.Sleep(duration * time.Second)
+// 	ch <- false
+// }

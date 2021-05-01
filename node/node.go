@@ -210,16 +210,38 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 	client_id := components[0]
 	var success bool
 	start := time.Now()
+	ch := make(chan bool)
+	
 	if n.client_list[client_id] {
 		// fmt.Println("%s is in client list", client_id)
-		success = n.pbft_state.Run(message, n.id, client_id,  n.pbft_signals[client_id] ,n.broadcastToZone)
+		go func(message string, id string, client_id string, ch chan bool, broadcast func(string), result chan bool) {
+
+			success := n.pbft_state.Run(message, id, client_id,  ch , broadcast)
+			result <- success
+
+		} (message, n.id, client_id,  n.pbft_signals[client_id] ,n.broadcastToZone, ch)
+		
 	} else {
+		go func(message string, id string, zone string, client_id string, ch <-chan bool, broadcast func(string), localbroadcast func(string), endorse_signals map[string]chan string, state *endorsement.EndorsementState, result chan bool) {
+
+			success := n.paxos_state.Run(message, id, zone, client_id, ch, broadcast, localbroadcast, endorse_signals, state)
+			result <- success
+
+		} (message, n.id, n.zone, client_id, n.paxos_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state, ch)
 		// fmt.Println("%s not is in client list", client_id)
-		success = n.paxos_state.Run(message, n.id, n.zone, client_id, n.paxos_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state)
+		// success = n.paxos_state.Run(message, n.id, n.zone, client_id, n.paxos_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state)
 	}
+	select {
+    case success = <-ch:
+        break
+		
+    case <-time.After(2 * time.Second):
+       success = false
+    }
 	end := time.Now()
 	difference := end.Sub(start)
 	total_time := difference.Seconds() 
+	
 	if !success {
 		fmt.Println("FAILED on", message)
 		total_time = 0.0
