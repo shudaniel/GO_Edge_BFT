@@ -21,8 +21,8 @@ import (
 
 var lock_mutex = &sync.Mutex{}
 
-type triple struct {
-	Msg string
+type IncomingMessage struct {
+	Msg []byte
 	Address *net.UDPAddr
 }
 
@@ -41,7 +41,7 @@ type node struct {
 	sock              *net.UDPConn
 	id                string
 	zone              string
-	msg_chan          chan triple
+	inbox          chan IncomingMessage
 	outbox            chan OutgoingMessage
 	endorse_signals           map[string]chan string
 	pbft_signals           map[string]chan bool
@@ -80,7 +80,7 @@ func NewNode(ip string, port int, z string, f int) *node {
 		id: 				 ip + ":" + strconv.Itoa(port),
 		outbox:               make(chan OutgoingMessage, common.MAX_CHANNEL_SIZE),
 		// sock:                ser,
-		msg_chan:           make(chan triple, common.MAX_CHANNEL_SIZE),
+		inbox:           make(chan IncomingMessage, common.MAX_CHANNEL_SIZE),
 		private_key:          priv_key,
 		public_keys:         make(map[string]*rsa.PublicKey),
 		endorse_signals:             make(map[string]chan string),
@@ -152,10 +152,10 @@ func (n *node) joinNetwork() {
 }
 
 func (n *node) handlerRoutine() {
-	var received_data triple
+	var received_data IncomingMessage
 	for {
-		received_data = <- n.msg_chan
-		for _, value := range strings.Split(received_data.Msg, "*") {
+		received_data = <- n.inbox
+		for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), "*") {
 			go n.handleMessage(value, received_data.Address)
 		}
 
@@ -344,8 +344,8 @@ func (n *node) listen() {
 		p := make([]byte, 1024)
         _,remoteaddr,err := ser.(*net.UDPConn).ReadFromUDP(p)
         // fmt.Printf("Read a message (%d) %s \n", len, p)
-		n.msg_chan <- triple{
-			Msg: string( p ),
+		n.inbox <- IncomingMessage{
+			Msg: p,
 			Address: remoteaddr,
 		}
         if err !=  nil {
