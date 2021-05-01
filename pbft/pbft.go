@@ -73,11 +73,13 @@ func (state *PbftState) HandleMessage(
 	commit_key := clientid + "COMMIT"
 
 	achieve_pbft_prepare_quorum := false
+	increment_amount := 1
 	switch msg_type {
 
 
 	case "PRE_PREPARE":
 		s := create_pbft_message(clientid, id, "PREPARE", message_val)
+		increment_amount += 1
 		go broadcast(s)
 		fallthrough
 	case "PREPARE":
@@ -85,7 +87,7 @@ func (state *PbftState) HandleMessage(
 		state.locks[prepare_key].Lock()
 		interf, _ := state.counter_prepare.LoadOrStore(message_val + "PREPARE", 0)
 		count := interf.(int)
-		if common.HasQuorum(count + 1, state.failures) {
+		if common.HasQuorum(count + increment_amount, state.failures) {
 			state.counter_prepare.Store(message_val + "PREPARE", -30)
 			state.locks[prepare_key].Unlock()	
 			s := create_pbft_message(clientid, id, "COMMIT", message_val)
@@ -100,7 +102,7 @@ func (state *PbftState) HandleMessage(
 			// state.locks[commit_key].Unlock()
 			
 		} else {
-			state.counter_prepare.Store(message_val + "PREPARE", count + 1)
+			state.counter_prepare.Store(message_val + "PREPARE", count + increment_amount)
 			state.locks[prepare_key].Unlock()	
 		}
 		
@@ -118,6 +120,7 @@ func (state *PbftState) HandleMessage(
 			// Signal other channel			
 			// fmt.Printf("Quorum achieved for pbft %s\n", message)
 			ch <- true
+			
 			
 		} else {
 			state.counter_commit.Store(message_val + "COMMIT", count + 1)

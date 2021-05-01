@@ -88,11 +88,13 @@ func (state *EndorsementState) HandleMessage(
 
 	achieve_prepare_quorum := false
 	signature_str := ""
+	increment_amount := 1
 	switch msg_type {
 
 
 	case "E_PRE_PREPARE":
 		s := createEndorseMsg( "E_PREPARE", msg_value, id, original_senderid, clientid )
+		increment_amount++
 		broadcast(s)
 		fallthrough
 	case "E_PREPARE":
@@ -100,7 +102,7 @@ func (state *EndorsementState) HandleMessage(
 		state.locks[prepare_key].Lock()
 		interf, _ := state.counter_prepare.LoadOrStore(msg_value + "E_PREPARE", 0)
 		count := interf.(int) 
-		if common.HasQuorum(count + 1, state.failures) {
+		if common.HasQuorum(count + increment_amount, state.failures) {
 			state.counter_prepare.Store(msg_value + "E_PREPARE", -30)
 			state.locks[prepare_key].Unlock()
 
@@ -120,7 +122,7 @@ func (state *EndorsementState) HandleMessage(
 			// fmt.Printf("Quorum achieved for %s\n", message)
 			
 		} else {
-			state.counter_prepare.Store(msg_value + "E_PREPARE", count + 1)
+			state.counter_prepare.Store(msg_value + "E_PREPARE", count + increment_amount)
 			state.locks[prepare_key].Unlock()
 		}
 
