@@ -59,7 +59,7 @@ func (state *PaxosState) Run(
 	// fmt.Println("Got endorsement")
 	// Get endorsement for this message
 	// Do not send message to yourself. Just ack it immediately
-	state.counter_prepare.Store(message, 1)
+	state.counter.Store(message, 1)
 	
 	go broadcast( "PAXOS|" + preprepare_msg + "/" + signatures )
 	committed := <-ch

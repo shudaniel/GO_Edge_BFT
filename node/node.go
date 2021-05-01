@@ -208,9 +208,9 @@ func (n *node) handleClientJoin(clientid string, zone string) {
 		fmt.Printf("Client joining: %s\n", clientid)
 		n.client_list[clientid] = true
 	}
-	n.pbft_signals[clientid] = make(chan bool)
-	n.paxos_signals[clientid] = make(chan bool)
-	n.endorse_signals[clientid] = make(chan string)
+	n.pbft_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
+	n.paxos_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
+	n.endorse_signals[clientid] = make(chan string, common.MAX_CHANNEL_SIZE)
 	fmt.Printf("Client locks created: %s\n", zone)
 	n.pbft_state.Initialize(clientid)
 	n.endorse_state.Initialize(clientid)
