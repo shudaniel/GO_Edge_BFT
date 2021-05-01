@@ -55,7 +55,7 @@ func NewNode(ip string, port int, z string, f int) *node {
 		paxos_state:          paxos.NewPaxosState(),
 		zone:				 z,
 		id: 				 ip + ":" + strconv.Itoa(port),
-		msg_chan:           make(chan triple),
+		msg_chan:           make(chan triple), 
 		private_key:          priv_key,
 		public_keys:         make(map[string]*rsa.PublicKey),
 		endorse_signals:             make(map[string]chan string),
@@ -147,7 +147,7 @@ func (n *node) joinNetwork() {
             fmt.Println(err)
         } else {
 			n.sendResponse(join_msg, c)
-			go n.handleConnection(*c, n.msg_chan)
+			go n.handleConnection(c, n.msg_chan)
 		}
 
 	}
@@ -158,6 +158,7 @@ func (n *node) handlerRoutine(msg_chan chan triple) {
 	var received_data triple
 	for {
 		received_data = <- msg_chan
+
 		for _, value := range strings.Split(received_data.Msg, "*") {
 			go n.handleMessage(value, received_data.Conn)
 		}
@@ -294,25 +295,25 @@ func (n *node) handleMessage(message string, conn *net.TCPConn) {
 
 }
 
-func (n *node)  handleConnection(c net.TCPConn, msg_chan chan triple) {
+func (n *node)  handleConnection(c *net.TCPConn, msg_chan chan triple) {
 	// fmt.Printf("Serving %s\n", c.RemoteAddr().String())
 	for {
 			p := make([]byte, 8192)
-			len, err := c.Read(p)
+			len, err := (*c).Read(p)
 			// netData, err := bufio.NewReader(c).ReadString('*')
 	
 			if err == nil && len > 0 {
 
 				msg_chan <- triple {
 					Msg: strings.TrimSpace(string(p)),
-					Conn: &c,
+					Conn: c,
 				}
 			}
 
 			// result := strconv.Itoa(random()) + "\n"
 			// c.Write([]byte(string(result)))
 	}
-	c.Close()
+	(*c).Close()
 }
 
 func (n *node) listen( sock *net.TCPListener, msg_chan chan triple ) {
@@ -336,7 +337,7 @@ func (n *node) listen( sock *net.TCPListener, msg_chan chan triple ) {
             fmt.Println(err)
         }
         // fmt.Println("Calling handleConnection")
-        go n.handleConnection(*conn, msg_chan)
+        go n.handleConnection(conn, msg_chan)
     }
 }
 
