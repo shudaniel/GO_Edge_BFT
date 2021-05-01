@@ -21,28 +21,37 @@ import (
 
 var lock_mutex = &sync.Mutex{}
 
-type IncomingMessage struct {
+type IncomingTCPMessage struct {
+	Msg []byte
+	outbox chan string
+}
+
+
+type IncomingUDPMessage struct {
 	Msg []byte
 	Address *net.UDPAddr
 }
 
-type OutgoingMessage struct {
+type OutgoingUDPMessage struct {
     recipient *net.UDPAddr
     data      []byte
 }
 
 
+
 type node struct {
-	my_addr           net.UDPAddr
-	directory		  map[string]map[string]*net.UDPAddr
+	my_addr           string
+	directory		  map[string]map[string]chan string
 	pbft_state        *pbft.PbftState
 	endorse_state        *endorsement.EndorsementState
 	paxos_state        *paxos.PaxosState
 	sock              *net.UDPConn
 	id                string
 	zone              string
-	inbox          chan IncomingMessage
-	outbox            chan OutgoingMessage
+	inboxTCP          chan IncomingTCPMessage
+	inboxUDP          chan IncomingUDPMessage
+	outboxesTCP           map[string]chan string
+	outboxUDP            chan OutgoingUDPMessage
 	endorse_signals           map[string]chan string
 	pbft_signals           map[string]chan bool
 	paxos_signals           map[string]chan bool
@@ -56,10 +65,10 @@ func NewNode(ip string, port int, z string, f int) *node {
 
 	randbits := rand.Intn(100)
 
-	addr := net.UDPAddr{
-        Port: port,
-        IP: net.ParseIP(ip),
-    }
+	// addr := net.UDPAddr{
+    //     Port: port,
+    //     IP: net.ParseIP(ip),
+    // }
     // ser, err := reuseport.ListenPacket("udp", addr.String())
     // if err != nil {
     //     fmt.Printf("Some error %v\n", err)
@@ -71,16 +80,18 @@ func NewNode(ip string, port int, z string, f int) *node {
 
 	newNode := node{
 
-		my_addr:            addr,
-		directory:           make(map[string]map[string]*net.UDPAddr),
+		my_addr:            ip + ":" + strconv.Itoa(port),
+		directory:           make(map[string]map[string]chan string),
 		pbft_state:          pbft.NewPbftState(f),
 		endorse_state:       endorsement.NewEndorseState(f),
 		paxos_state:          paxos.NewPaxosState(),
 		zone:				 z,
 		id: 				 ip + ":" + strconv.Itoa(port),
-		outbox:               make(chan OutgoingMessage, common.MAX_CHANNEL_SIZE),
+		inboxTCP:        make(chan IncomingTCPMessage, common.MAX_CHANNEL_SIZE),
+		outboxUDP:               make(chan OutgoingUDPMessage, common.MAX_CHANNEL_SIZE),
+		outboxesTCP:      make(map[string]chan string),
 		// sock:                ser,
-		inbox:           make(chan IncomingMessage, common.MAX_CHANNEL_SIZE),
+		inboxUDP:           make(chan IncomingUDPMessage, common.MAX_CHANNEL_SIZE),
 		private_key:          priv_key,
 		public_keys:         make(map[string]*rsa.PublicKey),
 		endorse_signals:             make(map[string]chan string),
@@ -130,43 +141,69 @@ func (n *node) joinNetwork() {
 		return
 	}
 
-	join_msg := n.createJoinMessage(true)
+	// join_msg := n.createJoinMessage(true)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 		line_components := strings.Split(line, " ")
-		port, err := strconv.Atoi(line_components[1])
-		if err != nil {
-			file.Close()
-			fmt.Println("Error with port")
-			fmt.Println(err)
-			return
+		addr :=  line_components[0] + ":" + line_components[1]
+		if addr == n.my_addr {
+			// Don't connect to yourself
+			continue
 		}
-		addr := net.UDPAddr{
-			Port: port,
-			IP: net.ParseIP(line_components[0]),
-		}
-		n.sendResponse(join_msg, &addr)
+		c, err := net.Dial("tcp", addr)
+        if err != nil {
+                fmt.Println(err)
+                continue
+        }
+		outbox := make(chan string)
+		go n.handleConnection(c, outbox)
+		// port, err := strconv.Atoi(line_components[1])
+		// if err != nil {
+		// 	file.Close()
+		// 	fmt.Println("Error with port")
+		// 	fmt.Println(err)
+		// 	return
+		// }
+		// addr := net.UDPAddr{
+		// 	Port: port,
+		// 	IP: net.ParseIP(line_components[0]),
+		// }
+		
 	}
 	file.Close()
 }
 
-func (n *node) handlerRoutine() {
-	var received_data IncomingMessage
+func (n *node) udpHandlerRoutine() {
+	var received_data IncomingUDPMessage
 	for {
-		received_data = <- n.inbox
+		received_data = <- n.inboxUDP
 		for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), "*") {
-			go n.handleMessage(value, received_data.Address)
+			go n.handleUDPMessage(value, received_data.Address)
 		}
+
+	}
+}
+
+func (n *node) tcpHandlerRoutine() {
+	var received_data IncomingTCPMessage
+	for {
+		received_data = <- n.inboxTCP
+		for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), "*") {
+			go n.handleTCPMessage(value, received_data.outbox)
+		}
+		
+		
 
 	}
 }
 
 func (n *node) broadcastToZone(msg string) {
+	fmt.Println("Broadcast to zone:", msg)
 	if inner_dir, ok := n.directory[n.zone]; ok {
-		for nodeid, addr := range inner_dir {
+		for nodeid, outbox := range inner_dir {
 			if nodeid != n.id {
-				n.sendResponse(msg, addr)
+				n.sendTCPResponse(msg, outbox)
 			}
 		}
 	}
@@ -174,12 +211,12 @@ func (n *node) broadcastToZone(msg string) {
 
 func(n *node) sendToNode(msg string, nodeid string, zone string) {
 	// Send message to one node in your zone, if node with nodeid exists
-	if addr, ok := n.directory[zone][nodeid]; ok {
-		n.sendResponse(msg, addr)
+	if outbox, ok := n.directory[zone][nodeid]; ok {
+		n.sendTCPResponse(msg, outbox)
 	}
 }
 
-func (n *node) handleJoin(message_components []string, addr *net.UDPAddr, reply bool) {
+func (n *node) handleJoin(message_components []string, outbox chan string, reply bool) {
 	nodeid := message_components[1]
 	zone := message_components[2]
 	pubkey := message_components[3]
@@ -190,16 +227,16 @@ func (n *node) handleJoin(message_components []string, addr *net.UDPAddr, reply 
 
 	lock_mutex.Lock()
 	if _, ok := n.directory[zone]; !ok {
-		n.directory[zone] = make(map[string]*net.UDPAddr)
+		n.directory[zone] = make(map[string]chan string)
 	}
 	n.public_keys[nodeid] = common.BytesToPublicKey(pubkey_bytes)
-	n.directory[zone][nodeid] = addr
+	n.directory[zone][nodeid] = outbox
 	lock_mutex.Unlock()
 	
-	if reply {
-		reply_msg := n.createJoinMessage(false)
-		n.sendResponse(reply_msg, addr)
-	}
+// 	if reply {
+// 		reply_msg := n.createJoinMessage(false)
+// 		n.sendTCPResponse(reply_msg, nodeid)
+// 	}
 }
 
 func (n *node) handleClientJoin(clientid string, zone string) {
@@ -261,7 +298,7 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 		fmt.Println("FAILED on", message, txn_type)
 		total_time = 0.0
 	} 
-	n.sendResponse(fmt.Sprintf("%f", total_time), addr)
+	n.sendUDPResponse(fmt.Sprintf("%f", total_time), addr)
 	// fmt.Println("Total time: %d", total_time)
 
 }
@@ -269,8 +306,8 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 func (n *node) broadcastInterzonal(message string) {
 	for zone, _ := range n.directory {
 		if zone != n.zone {
-			for _, addr := range n.directory[zone] {
-				n.sendResponse(message, addr)
+			for _, outbox := range n.directory[zone] {
+				n.sendTCPResponse(message, outbox)
 				break
 			}
 		}
@@ -278,24 +315,17 @@ func (n *node) broadcastInterzonal(message string) {
 	}
 }
 
-func (n *node) handleMessage(message string, addr *net.UDPAddr) {
+func (n *node) handleTCPMessage(message string, outbox chan string) {
 	components := strings.Split(message, "|")
-	// fmt.Printf("Received: %s \n", message)
+	fmt.Printf("Received: %s \n", message)
 	msg_type := components[0]
 	switch msg_type {
 	case "JOIN":
 		fmt.Printf("Received: %s \n", message)
-		n.handleJoin(components, addr, true)
+		n.handleJoin(components, outbox, true)
 	case "JOIN_NOREPLY":
 		fmt.Printf("Received: %s \n", message)
-		n.handleJoin(components, addr, false)
-	case "CLIENT_JOIN":
-		clientid := components[1]
-		zone := components[2]
-		n.handleClientJoin(clientid, zone)
-	case "CLIENT_REQUEST":
-		request_msg := components[1]
-		n.handleClientRequest(request_msg, addr)
+		n.handleJoin(components, outbox, false)
 	case "ENDORSE":
 		endorse_msg := components[1]
 		n.endorse_state.HandleMessage(endorse_msg, n.broadcastToZone, n.sendToNode, n.zone, n.id, n.endorse_signals, n.public_keys, n.private_key)
@@ -309,23 +339,101 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 		clientid := components[1]
 		pbft_msg := components[2]
 		n.pbft_state.HandleMessage(pbft_msg, n.broadcastToZone ,n.id, clientid, n.pbft_signals[clientid])
+	}
+}
+
+func (n *node) handleUDPMessage(message string, addr *net.UDPAddr) {
+	components := strings.Split(message, "|")
+	// fmt.Printf("Received: %s \n", message)
+	msg_type := components[0]
+	switch msg_type {
+	case "CLIENT_JOIN":
+		clientid := components[1]
+		zone := components[2]
+		n.handleClientJoin(clientid, zone)
+	case "CLIENT_REQUEST":
+		request_msg := components[1]
+		n.handleClientRequest(request_msg, addr)
 	case "RESET":
 		n.reset()
 	}
-
-	// go n.sendResponse(ser, remoteaddr)
 }
 
-func (n *node) listen() {
-	ser, err := reuseport.ListenPacket("udp", n.my_addr.String())
+
+func (n *node) handleConnection(c net.Conn, outbox chan string) {
+	fmt.Printf("Serving %s\n", c.RemoteAddr().String())
+
+	// On connect, send a JOIN message
+	join_msg := n.createJoinMessage(false)
+	c.Write([]byte(join_msg + "*"))
+
+	sendFromOutbox := func(c net.Conn, outbox chan string) {
+		var message string
+		for {
+			message = <- outbox
+			c.Write([]byte(message))
+		}
+	}
+	
+	go sendFromOutbox(c, outbox)
+	for {
+			p := make([]byte, 1024)
+			_, err := c.Read(p)
+			if err != nil {
+				if err.Error() == "EOF" {
+					fmt.Println("EOF detected")
+					break
+				}
+
+					
+			} else {
+				n.inboxTCP<- IncomingTCPMessage{
+					Msg: p,
+					outbox: outbox,
+				}
+			}
+
+		
+			// fmt.Print("-> ", string(netData))
+	}
+	c.Close()
+}
+
+func (n *node) sendTCPResponse(message string, outbox chan string) {
+	fmt.Println("Sending", message)
+	outbox <- (message + "*")
+}
+
+func (n *node) listenTCP() {
+	ser, err := reuseport.Listen("tcp", n.my_addr)
+    if err != nil {
+        fmt.Printf("Some error %v\n", err)
+        return 
+    }
+	defer ser.Close()
+
+	for {
+		c, err := ser.Accept()
+		if err != nil {
+				fmt.Println(err)
+		} else {
+			outbox := make(chan string)
+			go n.handleConnection(c, outbox)
+		}
+	}
+
+}
+
+func (n *node) listenUDP() {
+	ser, err := reuseport.ListenPacket("udp", n.my_addr)
     if err != nil {
         fmt.Printf("Some error %v\n", err)
         return 
     }
 
-	// outbox := make(chan OutgoingMessage, common.MAX_CHANNEL_SIZE)
+	// outbox := make(chan OutgoingUDPMessage, common.MAX_CHANNEL_SIZE)
 
-	sendFromOutbox := func( outbox chan OutgoingMessage ) {
+	sendFromOutbox := func( outbox chan OutgoingUDPMessage ) {
         n, err := 0, error(nil)
         for msg := range outbox {
             n, err = ser.(*net.UDPConn).WriteToUDP(msg.data, msg.recipient)
@@ -339,14 +447,14 @@ func (n *node) listen() {
     }
 
 	for i := 1;  i <= 4; i++ {
-        go sendFromOutbox(n.outbox)
+        go sendFromOutbox(n.outboxUDP)
     }
 
 	for {
 		p := make([]byte, 1024)
         _,remoteaddr,err := ser.(*net.UDPConn).ReadFromUDP(p)
         // fmt.Printf("Read a message (%d) %s \n", len, p)
-		n.inbox <- IncomingMessage{
+		n.inboxUDP <- IncomingUDPMessage{
 			Msg: p,
 			Address: remoteaddr,
 		}
@@ -357,10 +465,10 @@ func (n *node) listen() {
     }
 }
 
-func (n *node) sendResponse(message string, addr *net.UDPAddr) {
+func (n *node) sendUDPResponse(message string, addr *net.UDPAddr) {
 	// fmt.Printf("Sending: %s \n", message)
 	// Place the message on an outbox
-	n.outbox <- OutgoingMessage{
+	n.outboxUDP <- OutgoingUDPMessage{
 		recipient: addr,
 		data: []byte(message + "*"),
 	}
@@ -374,8 +482,11 @@ func (n *node) sendResponse(message string, addr *net.UDPAddr) {
 func (n *node) Run() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	for i:= 0; i < runtime.NumCPU(); i++ {
-		go n.listen()
-		go n.handlerRoutine()
+		go n.listenUDP()
+		go n.udpHandlerRoutine()
+
+		go n.listenTCP()
+		go n.tcpHandlerRoutine()
 	}
 
 	n.joinNetwork()
