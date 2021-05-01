@@ -71,7 +71,9 @@ sock.bind((args.address, args.port))
 
 primaries = {}
 with open("primaries.json", "r") as readfile:
-    primaries = json.loads(readfile.read())
+    primary_info = json.loads(readfile.read())
+    for i in range(len(primary_info)):
+        primaries[ primary_info[i]["zone"]  ] = (primary_info[i]["ip"], primary_info[i]["port"])
 
 for i in range(num_clients):
     sem = threading.Semaphore(0)
