@@ -29,14 +29,10 @@ type node struct {
 	pbft_state        *pbft.PbftState
 	endorse_state        *endorsement.EndorsementState
 	paxos_state        *paxos.PaxosState
+	sock              *net.UDPConn
 	id                string
-	sock               *net.UDPConn
-	sock2               *net.UDPConn
-	sock3               *net.UDPConn
 	zone              string
 	msg_chan          chan triple
-	msg_chan2          chan triple
-	msg_chan3          chan triple
 	endorse_signals           map[string]chan string
 	pbft_signals           map[string]chan bool
 	paxos_signals           map[string]chan bool
@@ -60,26 +56,6 @@ func NewNode(ip string, port int, z string, f int) *node {
         return nil
     }
 
-	addr2 := net.UDPAddr{
-        Port: port + 1,
-        IP: net.ParseIP(ip),
-    }
-	ser2, err := net.ListenUDP("udp", &addr2)
-    if err != nil {
-        fmt.Printf("Some error %v\n", err)
-        return nil
-    }
-	
-	addr3 := net.UDPAddr{
-        Port: port + 2,
-        IP: net.ParseIP(ip),
-    }
-	ser3, err := net.ListenUDP("udp", &addr3)
-    if err != nil {
-        fmt.Printf("Some error %v\n", err)
-        return nil
-    }
-
 	priv_key, pub_key := common.GenerateKeyPair(randbits)
 
 
@@ -89,13 +65,9 @@ func NewNode(ip string, port int, z string, f int) *node {
 		endorse_state:       endorsement.NewEndorseState(f),
 		paxos_state:          paxos.NewPaxosState(),
 		zone:				 z,
-		sock:                ser,
-		sock2:                ser2,
-		sock3:                ser3,
 		id: 				 ip + ":" + strconv.Itoa(port),
+		sock:                ser,
 		msg_chan:           make(chan triple),
-		msg_chan2:           make(chan triple),
-		msg_chan3:           make(chan triple),
 		private_key:          priv_key,
 		public_keys:         make(map[string]*rsa.PublicKey),
 		endorse_signals:             make(map[string]chan string),
@@ -106,13 +78,6 @@ func NewNode(ip string, port int, z string, f int) *node {
 	}
 	newNode.public_keys[newNode.id] = pub_key
 
-	go newNode.listen(ser, newNode.msg_chan)
-	go newNode.listen(ser2, newNode.msg_chan2)
-	go newNode.listen(ser3, newNode.msg_chan3)
-
-	go newNode.handlerRoutine(newNode.msg_chan)
-	go newNode.handlerRoutine(newNode.msg_chan2)
-	go newNode.handlerRoutine(newNode.msg_chan3)
 	return &newNode
 }
 
@@ -165,7 +130,7 @@ func (n *node) joinNetwork() {
 			return
 		}
 		addr := net.UDPAddr{
-			Port: port + 1,
+			Port: port,
 			IP: net.ParseIP(line_components[0]),
 		}
 		n.sendResponse(join_msg, &addr)
@@ -173,10 +138,10 @@ func (n *node) joinNetwork() {
 	file.Close()
 }
 
-func (n *node) handlerRoutine(msg_chan chan triple) {
+func (n *node) handlerRoutine() {
 	var received_data triple
 	for {
-		received_data = <- msg_chan
+		received_data = <- n.msg_chan
 		for _, value := range strings.Split(received_data.Msg, "*") {
 			go n.handleMessage(value, received_data.Address)
 		}
@@ -259,12 +224,7 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 		fmt.Println("FAILED on", message)
 		total_time = 0.0
 	} 
-
-	_,err := n.sock3.WriteToUDP([]byte(fmt.Sprintf("%f", total_time)), addr)
-	if err != nil {
-		fmt.Printf("Couldn't send response %v", err)
-	}
-	// n.sendResponse(fmt.Sprintf("%f", total_time), addr)
+	n.sendResponse(fmt.Sprintf("%f", total_time), addr)
 	// fmt.Println("Total time: %d", total_time)
 
 }
@@ -319,13 +279,12 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 	// go n.sendResponse(ser, remoteaddr)
 }
 
-func (n *node) listen(sock *net.UDPConn, msg_chan chan triple ) {
-
+func (n *node) listen() {
 	for {
 		p := make([]byte, 8192)
-        _,remoteaddr,err := sock.ReadFromUDP(p)
-        // fmt.Printf("Read a message %s \n", p)
-		msg_chan <- triple{
+        _,remoteaddr,err := n.sock.ReadFromUDP(p)
+        // fmt.Printf("Read a message (%d) %s \n", len, p)
+		n.msg_chan <- triple{
 			Msg: string( p ),
 			Address: remoteaddr,
 		}
@@ -338,7 +297,6 @@ func (n *node) listen(sock *net.UDPConn, msg_chan chan triple ) {
 
 func (n *node) sendResponse(message string, addr *net.UDPAddr) {
 	// fmt.Printf("Sending: %s \n", message)
-	
 	_,err := n.sock.WriteToUDP([]byte(message + "*"), addr)
 	if err != nil {
 		fmt.Printf("Couldn't send response %v", err)
@@ -347,6 +305,8 @@ func (n *node) sendResponse(message string, addr *net.UDPAddr) {
 }
 
 func (n *node) Run() {
+	go n.listen()
+	go n.handlerRoutine()
 	n.joinNetwork()
 
 	// Wait here forever
