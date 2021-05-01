@@ -142,7 +142,7 @@ func (state *EndorsementState) HandleMessage(
 		interf, _ := state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
 		count := interf.(int) 
 		if common.HasQuorum(count + 1, state.failures) {
-			state.signatures[clientid][count + 1] = signature_str
+			state.signatures[clientid][count] = signature_str
 			state.counter_promise.Store(msg_value + "E_PROMISE", -30)
 			signatures_str := strings.Join(state.signatures[clientid], "/")
 			state.signatures[clientid][0] = ""
@@ -160,7 +160,7 @@ func (state *EndorsementState) HandleMessage(
 		} else {
 			state.counter_promise.Store(msg_value + "E_PROMISE", count + 1)
 			if count >= 0 { 
-				state.signatures[clientid][count + 1] = signature_str
+				state.signatures[clientid][count] = signature_str
 			}
 			state.locks[promise_key].Unlock()
 		}
