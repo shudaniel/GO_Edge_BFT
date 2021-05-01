@@ -20,6 +20,8 @@ import (
 )
 
 var lock_mutex = &sync.Mutex{}
+var paxos_mutex = &sync.Mutex{}
+var pbft_mutex = &sync.Mutex{}
 
 type IncomingMessage struct {
 	Msg []byte
@@ -224,13 +226,13 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 	var success bool
 	start := time.Now()
 	ch := make(chan bool)
-	lock_mutex.Lock()
-	n.pbft_signals[clientid] = make(chan bool)
-	n.paxos_signals[clientid] = make(chan bool)
-	n.endorse_signals[clientid] = make(chan string)
-	lock_mutex.Unlock()
+	
 	
 	if n.client_list[client_id] {
+		pbft_mutex.Lock()
+		n.pbft_signals[client_id] = make(chan bool)
+		pbft_mutex.Unlock()
+
 		// fmt.Println("%s is in client list", client_id)
 		go func(message string, id string, client_id string, ch chan bool, broadcast func(string), result chan bool) {
 
@@ -240,6 +242,11 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 		} (message, n.id, client_id,  n.pbft_signals[client_id] ,n.broadcastToZone, ch)
 		
 	} else {
+		paxos_mutex.Lock()
+		n.paxos_signals[client_id] = make(chan bool)
+		n.endorse_signals[client_id] = make(chan string)
+		paxos_mutex.Unlock()
+
 		go func(message string, id string, zone string, client_id string, ch <-chan bool, broadcast func(string), localbroadcast func(string), endorse_signals map[string]chan string, state *endorsement.EndorsementState, result chan bool) {
 
 			success := n.paxos_state.Run(message, id, zone, client_id, ch, broadcast, localbroadcast, endorse_signals, state)
