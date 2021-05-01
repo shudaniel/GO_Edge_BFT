@@ -13,7 +13,6 @@ import (
 	"time"
 	"bufio"
 	"sync"
-	"math/rand"
 	"crypto/rsa"
 )
 
@@ -31,6 +30,7 @@ type node struct {
 	paxos_state        *paxos.PaxosState
 	id                string
 	zone              string
+	udpsock            *net.UDPConn
 	msg_chan          chan triple
 	endorse_signals           map[string]chan string
 	pbft_signals           map[string]chan bool
@@ -44,19 +44,8 @@ type node struct {
 
 func NewNode(ip string, port int, z string, f int) *node {
 
-	randbits := rand.Intn(100)
 
-	addr := net.TCPAddr{
-        Port: port,
-        IP: net.ParseIP(ip),
-    }
-    ser, err := net.ListenTCP("tcp", &addr)
-    if err != nil {
-        fmt.Printf("Some error %v\n", err)
-        return nil
-    }
-
-	priv_key, pub_key := common.GenerateKeyPair(randbits)
+	priv_key, pub_key := common.GenerateKeyPair(0)
 
 
 	newNode := node{
@@ -76,7 +65,23 @@ func NewNode(ip string, port int, z string, f int) *node {
 		client_list: make(map[string]bool),
 	}
 	newNode.public_keys[newNode.id] = pub_key
-	go newNode.listen(ser)
+
+
+	for i := 0; i < 20; i++ { 
+		new_msg_chan := make(chan triple)
+		addr := net.TCPAddr{
+			Port: port + i,
+			IP: net.ParseIP(ip),
+		}
+		ser, err := net.ListenTCP("tcp", &addr)
+		if err != nil {
+			fmt.Printf("Some error %v\n", err)
+			return nil
+		}
+
+		go newNode.listen(ser, new_msg_chan)
+		go newNode.handlerRoutine(new_msg_chan)
+	}
 
 	return &newNode
 }
@@ -119,6 +124,8 @@ func (n *node) joinNetwork() {
 
 	join_msg := n.createJoinMessage(true)
 	scanner := bufio.NewScanner(file)
+
+	i := 0
 	for scanner.Scan() {
 		line := scanner.Text()
 		line_components := strings.Split(line, " ")
@@ -130,10 +137,11 @@ func (n *node) joinNetwork() {
 			return
 		}
 		addr := net.TCPAddr{
-			Port: port,
+			Port: port + i,
 			IP: net.ParseIP(line_components[0]),
 		}
 
+		i++
 		c, err := net.DialTCP("tcp", nil, &addr)
         if err != nil {
                 fmt.Println(err)
@@ -141,16 +149,16 @@ func (n *node) joinNetwork() {
         }
 		n.sendResponse(join_msg, c)
 
-		go n.handleConnection(*c)
+		go n.handleConnection(*c, n.msg_chan)
 
 	}
 	file.Close()
 }
 
-func (n *node) handlerRoutine() {
+func (n *node) handlerRoutine(msg_chan chan triple) {
 	var received_data triple
 	for {
-		received_data = <- n.msg_chan
+		received_data = <- msg_chan
 		for _, value := range strings.Split(received_data.Msg, "*") {
 			go n.handleMessage(value, received_data.Conn)
 		}
@@ -287,7 +295,7 @@ func (n *node) handleMessage(message string, conn *net.TCPConn) {
 
 }
 
-func (n *node)  handleConnection(c net.TCPConn) {
+func (n *node)  handleConnection(c net.TCPConn, msg_chan chan triple) {
 	// fmt.Printf("Serving %s\n", c.RemoteAddr().String())
 	for {
 			p := make([]byte, 8192)
@@ -296,7 +304,7 @@ func (n *node)  handleConnection(c net.TCPConn) {
 	
 			if err == nil && len > 0 {
 
-				n.msg_chan <- triple {
+				msg_chan <- triple {
 					Msg: strings.TrimSpace(string(p)),
 					Conn: &c,
 				}
@@ -308,7 +316,7 @@ func (n *node)  handleConnection(c net.TCPConn) {
 	c.Close()
 }
 
-func (n *node) listen( sock *net.TCPListener ) {
+func (n *node) listen( sock *net.TCPListener, msg_chan chan triple ) {
 	// for {
 	// 
     //     _,remoteaddr,err := n.sock.ReadFromUDP(p)
@@ -329,7 +337,7 @@ func (n *node) listen( sock *net.TCPListener ) {
             fmt.Println(err)
         }
         // fmt.Println("Calling handleConnection")
-        go n.handleConnection(*conn)
+        go n.handleConnection(*conn, msg_chan)
     }
 }
 
@@ -346,7 +354,7 @@ func (n *node) sendResponse(message string, c *net.TCPConn) {
 }
 
 func (n *node) Run() {
-	go n.handlerRoutine()
+	time.Sleep(20 * time.Second)
 	n.joinNetwork()
 
 	// Wait here forever
