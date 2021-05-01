@@ -99,7 +99,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 
 
 	<-start_signal
-	fmt.Println("Got signal, starting now")
+	// fmt.Println("Got signal, starting now")
 
 	client_starttime := time.Now()
 	for i := 0; i < num_t; i++ {
@@ -113,23 +113,23 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 
 			_, err = bufio.NewReader(directory["global"]).Read(p)
 			if err == nil {
-				fmt.Printf("%s\n", p)
+				// fmt.Printf("%s\n", p)
 			} else {
 				fmt.Printf("Some error %v\n", err)
 			}
-			fmt.Println("Received", string(p), "g")
+			// fmt.Println("Received", string(p), "g")
 
 		} else {
 			fmt.Fprintf(directory["local"], client_request)
 
 			_, err = bufio.NewReader(directory["local"]).Read(p)
 			if err == nil {
-				fmt.Printf("%s\n", p)
+				// fmt.Printf("%s\n", p)
 			} else {
 				fmt.Printf("Some error %v\n", err)
 			}
 
-			fmt.Println("Received", string(p), "l")
+			// fmt.Println("Received", string(p), "l")
 		}
 		
 
