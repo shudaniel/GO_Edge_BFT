@@ -15,6 +15,8 @@ import (
 	"sync"
 	"math/rand"
 	"crypto/rsa"
+	"runtime"
+	"github.com/libp2p/go-reuseport"
 )
 
 var lock_mutex = &sync.Mutex{}
@@ -24,7 +26,14 @@ type triple struct {
 	Address *net.UDPAddr
 }
 
+type OutgoingMessage struct {
+    recipient *net.UDPAddr
+    data      []byte
+}
+
+
 type node struct {
+	my_addr           net.UDPAddr
 	directory		  map[string]map[string]*net.UDPAddr
 	pbft_state        *pbft.PbftState
 	endorse_state        *endorsement.EndorsementState
@@ -33,6 +42,7 @@ type node struct {
 	id                string
 	zone              string
 	msg_chan          chan triple
+	outbox            chan OutgoingMessage
 	endorse_signals           map[string]chan string
 	pbft_signals           map[string]chan bool
 	paxos_signals           map[string]chan bool
@@ -50,24 +60,27 @@ func NewNode(ip string, port int, z string, f int) *node {
         Port: port,
         IP: net.ParseIP(ip),
     }
-    ser, err := net.ListenUDP("udp", &addr)
-    if err != nil {
-        fmt.Printf("Some error %v\n", err)
-        return nil
-    }
+    // ser, err := reuseport.ListenPacket("udp", addr.String())
+    // if err != nil {
+    //     fmt.Printf("Some error %v\n", err)
+    //     return nil
+    // }
 
 	priv_key, pub_key := common.GenerateKeyPair(randbits)
 
 
 	newNode := node{
+
+		my_addr:            addr,
 		directory:           make(map[string]map[string]*net.UDPAddr),
 		pbft_state:          pbft.NewPbftState(f),
 		endorse_state:       endorsement.NewEndorseState(f),
 		paxos_state:          paxos.NewPaxosState(),
 		zone:				 z,
 		id: 				 ip + ":" + strconv.Itoa(port),
-		sock:                ser,
-		msg_chan:           make(chan triple),
+		outbox:               make(chan OutgoingMessage, common.MAX_CHANNEL_SIZE),
+		// sock:                ser,
+		msg_chan:           make(chan triple, common.MAX_CHANNEL_SIZE),
 		private_key:          priv_key,
 		public_keys:         make(map[string]*rsa.PublicKey),
 		endorse_signals:             make(map[string]chan string),
@@ -235,7 +248,7 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
     case success = <-ch:
         break
 		
-    case <-time.After(2 * time.Second):
+    case <-time.After(common.TIMEOUT * time.Second):
        success = false
     }
 	end := time.Now()
@@ -302,9 +315,34 @@ func (n *node) handleMessage(message string, addr *net.UDPAddr) {
 }
 
 func (n *node) listen() {
+	ser, err := reuseport.ListenPacket("udp", n.my_addr.String())
+    if err != nil {
+        fmt.Printf("Some error %v\n", err)
+        return 
+    }
+
+	// outbox := make(chan OutgoingMessage, common.MAX_CHANNEL_SIZE)
+
+	sendFromOutbox := func( outbox chan OutgoingMessage ) {
+        n, err := 0, error(nil)
+        for msg := range outbox {
+            n, err = ser.(*net.UDPConn).WriteToUDP(msg.data, msg.recipient)
+            if err != nil {
+                fmt.Println(err)
+            }
+            if n != len(msg.data) {
+                fmt.Println("Tried to send", len(msg.data), "bytes but only sent ", n)
+            }
+        }
+    }
+
+	for i := 1;  i <= 4; i++ {
+        go sendFromOutbox(n.outbox)
+    }
+
 	for {
-		p := make([]byte, 8192)
-        _,remoteaddr,err := n.sock.ReadFromUDP(p)
+		p := make([]byte, 1024)
+        _,remoteaddr,err := ser.(*net.UDPConn).ReadFromUDP(p)
         // fmt.Printf("Read a message (%d) %s \n", len, p)
 		n.msg_chan <- triple{
 			Msg: string( p ),
@@ -319,16 +357,25 @@ func (n *node) listen() {
 
 func (n *node) sendResponse(message string, addr *net.UDPAddr) {
 	// fmt.Printf("Sending: %s \n", message)
-	_,err := n.sock.WriteToUDP([]byte(message + "*"), addr)
-	if err != nil {
-		fmt.Printf("Couldn't send response %v", err)
+	// Place the message on an outbox
+	n.outbox <- OutgoingMessage{
+		recipient: addr,
+		data: []byte(message + "*"),
 	}
+	// _,err := n.sock.WriteToUDP([]byte(message + "*"), addr)
+	// if err != nil {
+	// 	fmt.Printf("Couldn't send response %v", err)
+	// }
 	
 }
 
 func (n *node) Run() {
-	go n.listen()
-	go n.handlerRoutine()
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	for i:= 0; i < runtime.NumCPU(); i++ {
+		go n.listen()
+		go n.handlerRoutine()
+	}
+
 	n.joinNetwork()
 
 	// Wait here forever
