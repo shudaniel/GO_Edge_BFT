@@ -3,15 +3,20 @@ import socket
 import time
 import os
 import json
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--address", "-a", default="127.0.0.1")
+parser.add_argument("--port", "-p",  type=int, default=8000)
+args = parser.parse_args()
+
 
 clients = [
-    ("13.52.217.86", 8000),
-    ("3.17.177.88", 8000),
-    ("35.182.224.248", 8000)
+    ("54.176.62.111", 8000),
 ]
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.bind(("10.0.0.166", 8000))
+sock.bind((args.address, args.port))
 
 
 start = input("Push any key to start")
