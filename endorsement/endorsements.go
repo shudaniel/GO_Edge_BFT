@@ -56,6 +56,7 @@ func (state *EndorsementState) Run(
 
 
 	preprepare_msg := createEndorseMsg("E_PRE_PREPARE", message, id, id, clientid)
+	state.counter_prepare.Store(message  + "E_PREPARE", 1)
 	
 	// fmt.Printf("E_PREPARE_COUNT before sending preprepares with key: %s : %v\n", message + "E_PREPARE", state.counter[message + "E_PREPARE"])
 	go broadcast(preprepare_msg)
