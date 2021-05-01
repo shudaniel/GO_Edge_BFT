@@ -158,6 +158,7 @@ func summation(num_t int, ch chan float64, exit chan float64) {
 	for i := 0; i < num_t; i++ {	
 		newval = <- ch
 		total += newval
+		fmt.Println(i)
 	}
 	exit <- total
 }
