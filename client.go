@@ -63,12 +63,12 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 		conn, err := net.Dial("tcp", line_component[0] + ":" + line_component[1])
 		if err != nil {
 			fmt.Printf("Some error %v", err)
-			return
+		} else {
+			fmt.Fprintf(conn, client_join)
+			conn.Close()
 		}
 
-		fmt.Fprintf(conn, client_join)
 
-		conn.Close()
 	}
 	file.Close()
 	// lock_mutex.Unlock()
