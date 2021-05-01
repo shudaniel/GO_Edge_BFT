@@ -208,9 +208,9 @@ func (n *node) handleClientJoin(clientid string, zone string) {
 		fmt.Printf("Client joining: %s\n", clientid)
 		n.client_list[clientid] = true
 	}
-	// n.pbft_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
-	// n.paxos_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
-	// n.endorse_signals[clientid] = make(chan string, common.MAX_CHANNEL_SIZE)
+	n.pbft_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
+	n.paxos_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
+	n.endorse_signals[clientid] = make(chan string, common.MAX_CHANNEL_SIZE)
 	fmt.Printf("Client locks created: %s\n", zone)
 	n.pbft_state.Initialize(clientid)
 	n.endorse_state.Initialize(clientid)
@@ -224,11 +224,6 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 	var success bool
 	start := time.Now()
 	ch := make(chan bool)
-	lock_mutex.Lock()
-	n.pbft_signals[clientid] = make(chan bool)
-	n.paxos_signals[clientid] = make(chan bool)
-	n.endorse_signals[clientid] = make(chan string)
-	lock_mutex.Unlock()
 	
 	if n.client_list[client_id] {
 		// fmt.Println("%s is in client list", client_id)
