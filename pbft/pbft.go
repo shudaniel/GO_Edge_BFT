@@ -79,18 +79,14 @@ func (state *PbftState) HandleMessage(
 		state.locks[prepare_key].Lock()
 		interf, _ := state.counter_prepare.LoadOrStore(message_val + "PREPARE", 0)
 		count := interf.(int)
-		// state.counter[message_val + "PREPARE"]++
 		if common.HasQuorum(count + 1, state.failures) {
 			state.counter_prepare.Store(message_val + "PREPARE", -30)
-		// if common.HasQuorum(state.counter[message_val + "PREPARE"], state.failures) {
-			// state.counter[message_val + "PREPARE"] = -30
 			state.locks[prepare_key].Unlock()	
 			s := create_pbft_message(clientid, id, "COMMIT", message_val)
 			// fmt.Printf("Quorum achieved for %s\n", message)
 			state.locks[commit_key].Lock()
 			interf, _ = state.counter_commit.LoadOrStore(message_val + "COMMIT", 0)
 			state.counter_commit.Store(message_val + "COMMIT", interf.(int) + 1)
-			// state.counter[message_val + "COMMIT"]++
 			state.locks[commit_key].Unlock()
 			go broadcast(s)
 		} else {
@@ -108,16 +104,12 @@ func (state *PbftState) HandleMessage(
 		state.locks[commit_key].Lock()
 		interf, _ := state.counter_commit.LoadOrStore(message_val + "COMMIT", 0)
 		count := interf.(int)
-		// state.counter[message_val + "COMMIT"]++
 		if common.HasQuorum(count + 1, state.failures) {
 			state.counter_commit.Store(message_val + "COMMIT", -30)
-		// if common.HasQuorum(state.counter[message_val + "COMMIT"], state.failures) {
-			// state.counter[message_val + "COMMIT"] = -30
 			// Value has been committed
 			state.locks[commit_key].Unlock()
 			// Signal other channel
 			
-			// fmt.Printf("Quorum achieved for pbft %s\n", message)
 			ch <- true
 			
 		} else {

@@ -12,6 +12,8 @@ import (
 	"io/ioutil"
 	"math/rand"
 
+
+	"sync/atomic"
 )
 
 var lock_mutex = &sync.Mutex{}
@@ -41,7 +43,7 @@ func NewLatencyStruct() *Latencies {
 	return &newL
 }
 
-func client_thread(client_id string, zone string, num_t int, percent float64,  ch chan *Latencies, summation_ch chan float64, start_signal <-chan bool) {
+func client_thread(client_id string, zone string, num_t int, percent float64,  ch chan *Latencies, summation_ch chan float64, start_signal <-chan bool, req_count *uint32) {
 
 	client_join := "CLIENT_JOIN|" + client_id + "|" + zone + "*"
 
@@ -58,7 +60,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 	for scanner.Scan() {
 		line := scanner.Text()
 		line_component := strings.Split(line, " ")
-		conn, err := net.Dial("udp", line_component[0] + ":" + line_component[1])
+		conn, err := net.Dial("tcp", line_component[0] + ":" + line_component[1])
 		if err != nil {
 			fmt.Printf("Some error %v", err)
 			return
@@ -80,7 +82,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 
 	for j := 0; j < len(addresses); j++ {
 		if addresses[j].Zone == zone {
-			conn2, err := net.Dial("udp", addresses[j].Ip + ":" + addresses[j].Port)
+			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -88,7 +90,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 			directory["local"] = conn2
 		}
 		if addresses[j].Zone == "0" {
-			conn2, err := net.Dial("udp", addresses[j].Ip + ":" + addresses[j].Port)
+			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -106,6 +108,8 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 		p :=  make([]byte, 2048)
 		i_str := strconv.Itoa(i)
 		client_request := "CLIENT_REQUEST|" + client_id + "!" + i_str + "!10*"
+		atomic.AddUint32(req_count, 1)
+		fmt.Println(*req_count)
 		randnum := rand.Float64()
 		// start := time.Now()
 		if randnum <= percent {
@@ -150,6 +154,10 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 	lock_mutex.Unlock()
 
 	ch <- l
+
+	for _, v := range directory { 
+    	v.Close()
+}
 }	
 
 func summation(num_t int, ch chan float64, exit chan float64) {
@@ -158,7 +166,7 @@ func summation(num_t int, ch chan float64, exit chan float64) {
 	for i := 0; i < num_t; i++ {	
 		newval = <- ch
 		total += newval
-		fmt.Println(i)
+		// fmt.Println(i)
 	}
 	exit <- total
 }
@@ -211,6 +219,9 @@ func main() {
 
 	}
 
+	var req_count uint32
+	req_count = 0
+
 	p := make([]byte, 2048)
     addr := net.UDPAddr{
         Port: port,
@@ -236,7 +247,7 @@ func main() {
 	ch := make(chan *Latencies)
 
 	for i := 0; i < num_c; i++ {
-    	go client_thread( strconv.Itoa(client_id + i), zone, num_t, percent, ch, summation_ch, start_signals[i])
+    	go client_thread( strconv.Itoa(client_id + i), zone, num_t, percent, ch, summation_ch, start_signals[i], &req_count)
 	}
 
 	_,remoteaddr,err = ser.ReadFromUDP(p)
