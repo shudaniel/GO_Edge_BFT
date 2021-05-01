@@ -144,12 +144,11 @@ func (n *node) joinNetwork() {
 		i++
 		c, err := net.DialTCP("tcp", nil, &addr)
         if err != nil {
-                fmt.Println(err)
-                return
-        }
-		n.sendResponse(join_msg, c)
-
-		go n.handleConnection(*c, n.msg_chan)
+            fmt.Println(err)
+        } else {
+			n.sendResponse(join_msg, c)
+			go n.handleConnection(*c, n.msg_chan)
+		}
 
 	}
 	file.Close()
