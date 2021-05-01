@@ -6,7 +6,7 @@ package common
 
 const (
 	TIMEOUT = 3
-	MAX_CHANNEL_SIZE = 1000
+	MAX_CHANNEL_SIZE = 5000
 )
 
 func HasQuorum(count int, f int) bool {
