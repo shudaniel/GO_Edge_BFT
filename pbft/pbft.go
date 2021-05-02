@@ -4,6 +4,7 @@ import (
 	"EdgeBFT/common"
 	"strings"
 	"sync"
+	// "fmt"
 )
 
 
@@ -37,6 +38,7 @@ func (state *PbftState) GetF() int {
 }
 
 func (state *PbftState) Initialize(clientid string ) {
+	fmt.Println("initialize pbft")
 	state.locks[clientid + "PREPARE"] = &sync.Mutex{}
 	state.locks[clientid + "COMMIT"] = &sync.Mutex{}
 }
@@ -93,7 +95,7 @@ func (state *PbftState) HandleMessage(
 			s := create_pbft_message(clientid, id, "COMMIT", message_val)
 			go broadcast(s)
 
-			// fmt.Printf("Quorum achieved for %s\n", message)
+			// fmt.Printf("pbft prepare Quorum achieved for %s\n", message)
 			achieve_pbft_prepare_quorum = true
 
 			// state.locks[commit_key].Lock()
@@ -118,7 +120,7 @@ func (state *PbftState) HandleMessage(
 			// Value has been committed
 			state.locks[commit_key].Unlock()
 			// Signal other channel			
-			// fmt.Printf("Quorum achieved for pbft %s\n", message)
+			// fmt.Printf("pbft commit Quorum achieved for pbft %s\n", message)
 			ch <- true
 			
 			

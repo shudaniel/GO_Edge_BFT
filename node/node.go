@@ -209,6 +209,7 @@ func (n *node) broadcastToZone(msg string) {
 	if inner_dir, ok := n.directory[n.zone]; ok {
 		for nodeid, outbox := range inner_dir {
 			if nodeid != n.id {
+				// fmt.Println("Nodeid:", nodeid)
 				n.sendTCPResponse(msg, outbox)
 			}
 		}
@@ -261,7 +262,7 @@ func (n *node) handleClientJoin(clientid string, zone string) {
 	lock_mutex.Unlock()
 }
 
-func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
+func (n *node) handleClientRequest(message string, outbox chan string) {
 	components := strings.Split(message, "!")
 	client_id := components[0]
 	var success bool
@@ -292,7 +293,6 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 	select {
     case success = <-ch:
         break
-		
     case <-time.After(common.TIMEOUT * time.Second):
        success = false
     }
@@ -304,7 +304,8 @@ func (n *node) handleClientRequest(message string, addr *net.UDPAddr) {
 		fmt.Println("FAILED on", message, txn_type)
 		total_time = 0.0
 	} 
-	n.sendUDPResponse(fmt.Sprintf("%f", total_time), addr)
+	// n.sendUDPResponse(fmt.Sprintf("%f", total_time), addr)
+	n.sendTCPResponse(fmt.Sprintf("%f", total_time), outbox)
 	// fmt.Println("Total time: %d", total_time)
 
 }
@@ -323,7 +324,7 @@ func (n *node) broadcastInterzonal(message string) {
 
 func (n *node) handleTCPMessage(message string, outbox chan string) {
 	components := strings.Split(message, "|")
-	fmt.Printf("Received: %d %s \n", len(message), message)
+	// fmt.Printf("Received: %d %s \n", len(message), message)
 	msg_type := components[0]
 	switch msg_type {
 	case "JOIN":
@@ -349,9 +350,9 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 	// 	clientid := components[1]
 	// 	zone := components[2]
 	// 	n.handleClientJoin(clientid, zone)
-	// case "CLIENT_REQUEST":
-	// 	request_msg := components[1]
-	// 	n.handleClientRequest(request_msg, outbox)
+	case "CLIENT_REQUEST":
+		request_msg := components[1]
+		n.handleClientRequest(request_msg, outbox)
 	// case "RESET":
 	// 	n.reset()
 	}
@@ -359,16 +360,16 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 
 func (n *node) handleUDPMessage(message string, addr *net.UDPAddr) {
 	components := strings.Split(message, "|")
-	fmt.Printf("Received: %s \n", message)
+	// fmt.Printf("Received: %s \n", message)
 	msg_type := components[0]
 	switch msg_type {
 	case "CLIENT_JOIN":
 		clientid := components[1]
 		zone := components[2]
 		n.handleClientJoin(clientid, zone)
-	case "CLIENT_REQUEST":
-		request_msg := components[1]
-		n.handleClientRequest(request_msg, addr)
+	// case "CLIENT_REQUEST":
+	// 	request_msg := components[1]
+	// 	n.handleClientRequest(request_msg, addr)
 	case "RESET":
 		n.reset()
 	}
@@ -447,7 +448,7 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 			_, err := c.Read(p)
 			if err != nil {
 				if err.Error() == "EOF" {
-					fmt.Println("EOF detected")
+					// fmt.Println("EOF detected")
 					break
 				}
 					
@@ -499,7 +500,7 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 }
 
 func (n *node) sendTCPResponse(message string, outbox chan string) {
-	// fmt.Println("Sending", message)
+	fmt.Println("Sending", message)
 	outbox <- ("*" + message + "|end*")
 }
 

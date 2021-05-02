@@ -56,7 +56,7 @@ func (state *PaxosState) Run(
 	signatures := e_state.Run( preprepare_msg, id, clientid, endorsement_signals[clientid], localbroadcast )
 	
 
-	// fmt.Println("Got endorsement")
+	// fmt.Println("Got endorsement for ACCEPT")
 	// Get endorsement for this message
 	// Do not send message to yourself. Just ack it immediately
 	state.counter.Store(message, 1)
@@ -66,6 +66,7 @@ func (state *PaxosState) Run(
 	if !committed {
 		fmt.Println("Paxos failed???")
 	}
+	// fmt.Println("Paxos succeeded")
 
 	return committed
 	
