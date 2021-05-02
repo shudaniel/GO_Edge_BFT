@@ -5,7 +5,7 @@ package common
 // )
 
 const (
-	TIMEOUT = 10
+	TIMEOUT = 4
 	MAX_CHANNEL_SIZE = 5000
 )
 
