@@ -68,6 +68,9 @@ func (state *PbftState) HandleMessage(
 	ch chan<- bool,
 ) {
 	components := strings.Split(message, ";")
+	if len(components) < 3 {
+		return
+	}
 	msg_type := components[0]
 	message_val := components[2]
 
