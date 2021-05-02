@@ -38,7 +38,7 @@ func (state *PbftState) GetF() int {
 }
 
 func (state *PbftState) Initialize(clientid string ) {
-	fmt.Println("initialize pbft")
+	// fmt.Println("initialize pbft")
 	state.locks[clientid + "PREPARE"] = &sync.Mutex{}
 	state.locks[clientid + "COMMIT"] = &sync.Mutex{}
 }

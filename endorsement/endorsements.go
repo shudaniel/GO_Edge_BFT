@@ -6,7 +6,7 @@ import (
 	"sync"
 	"crypto/rsa"
 	"encoding/hex"
-	"fmt"
+	// "fmt"
 )
 
 type EndorsementState struct {
@@ -38,7 +38,8 @@ func (state *EndorsementState) GetF() int {
 	return state.failures
 }
 
-func (state *EndorsementState) Initialize(clientid string ) {
+func (state *EndorsementState) Initialize(clientid string ) 
+	// fmt.Println("initialize endorsement")
 	state.signatures[clientid] = []string{"", "", ""}
 	state.locks[clientid + "E_PREPARE"] = &sync.Mutex{}
 	state.locks[clientid + "E_PROMISE"] = &sync.Mutex{}
