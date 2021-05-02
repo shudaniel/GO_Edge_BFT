@@ -16,10 +16,13 @@ import (
 	"math/rand"
 	"crypto/rsa"
 	"runtime"
+	"regexp"
+	// "unicode"
 	"github.com/libp2p/go-reuseport"
 )
 
 var lock_mutex = &sync.Mutex{}
+var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,]*$`).MatchString 
 
 type IncomingTCPMessage struct {
 	Msg []byte
@@ -37,8 +40,6 @@ type OutgoingUDPMessage struct {
     data      []byte
 }
 
-
-
 type node struct {
 	my_addr           string
 	directory		  map[string]map[string]chan string
@@ -48,7 +49,6 @@ type node struct {
 	sock              *net.UDPConn
 	id                string
 	zone              string
-	inboxTCP          chan IncomingTCPMessage
 	inboxUDP          chan IncomingUDPMessage
 	outboxesTCP           map[string]chan string
 	outboxUDP            chan OutgoingUDPMessage
@@ -87,7 +87,7 @@ func NewNode(ip string, port int, z string, f int) *node {
 		paxos_state:          paxos.NewPaxosState(),
 		zone:				 z,
 		id: 				 ip + ":" + strconv.Itoa(port),
-		inboxTCP:        make(chan IncomingTCPMessage, common.MAX_CHANNEL_SIZE),
+		// inboxTCP:        make(chan IncomingTCPMessage, common.MAX_CHANNEL_SIZE),
 		outboxUDP:               make(chan OutgoingUDPMessage, common.MAX_CHANNEL_SIZE),
 		outboxesTCP:      make(map[string]chan string),
 		// sock:                ser,
@@ -156,7 +156,7 @@ func (n *node) joinNetwork() {
                 fmt.Println(err)
                 continue
         }
-		outbox := make(chan string)
+		outbox := make(chan string, common.MAX_CHANNEL_SIZE)
 		go n.handleConnection(c, outbox)
 		// port, err := strconv.Atoi(line_components[1])
 		// if err != nil {
@@ -185,18 +185,24 @@ func (n *node) udpHandlerRoutine() {
 	}
 }
 
-func (n *node) tcpHandlerRoutine() {
-	var received_data IncomingTCPMessage
-	for {
-		received_data = <- n.inboxTCP
-		for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), "*") {
-			go n.handleTCPMessage(value, received_data.outbox)
-		}
+// func (n *node) tcpHandlerRoutine() {
+// 	var received_data IncomingTCPMessage
+// 	for {
+// 		received_data = <- n.inboxTCP
+
+// 		for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), "*") {
+// 			if len(value) > 0 {
+// 				// Check that the end of the message is what you expect, otherwise you need to wait for the rest of it
+// 				go n.handleTCPMessage(value, received_data.outbox)
+// 			}
+// 			// if value[0] < unicode.MaxASCII {
+// 			// }
+// 		}
 		
 		
 
-	}
-}
+// 	}
+// }
 
 func (n *node) broadcastToZone(msg string) {
 	fmt.Println("Broadcast to zone:", msg)
@@ -317,7 +323,7 @@ func (n *node) broadcastInterzonal(message string) {
 
 func (n *node) handleTCPMessage(message string, outbox chan string) {
 	components := strings.Split(message, "|")
-	fmt.Printf("Received: %s \n", message)
+	fmt.Printf("Received: %d %s \n", len(message), message)
 	msg_type := components[0]
 	switch msg_type {
 	case "JOIN":
@@ -364,18 +370,69 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 	fmt.Printf("Serving %s\n", c.RemoteAddr().String())
 
 	// On connect, send a JOIN message
-	join_msg := n.createJoinMessage(false)
-	c.Write([]byte(join_msg + "*"))
+	join_msg := "*" + n.createJoinMessage(false) + "|end*"
+	c.Write([]byte(join_msg))
+
+	// msg_bytes := append([]byte(join_msg), "\n"...)
+	// c.Write(msg_bytes)
 
 	sendFromOutbox := func(c net.Conn, outbox chan string) {
 		var message string
+		// var msg_bytes []byte 
 		for {
 			message = <- outbox
 			c.Write([]byte(message))
+			
+			// msg_bytes = append([]byte(message), "\n"...)
+
+			// err := c.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
+			// if err != nil {
+			// 	outbox <- message
+			// 	continue
+			// }
+			// // if CheckConnError(err, c) { return }
+			// _, err = c.Write(msg_bytes)
+			// // if CheckConnError(err, c) { return }
+			// // len, _ := c.Write([]byte(message))
+			// // fmt.Println("Wrote", len, "bytes")
 		}
 	}
+
+	parseMessage := func(n *node, inbox chan IncomingTCPMessage ) {
+		var received_data IncomingTCPMessage
+		message := ""
+		for {
+			received_data = <- inbox
+			
+			for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), "*") {
+				if len(value) > 0 && isValidString(value) {
+					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
+					if len(value) > 3 && value[len(value)-3:] == "end" {
+						go n.handleTCPMessage(message + value, received_data.outbox)
+						message = ""
+					} else {
+						message = message + value
+					}
+					
+				}
+			}
+			
+			
+
+		}
+	}
+
 	
-	go sendFromOutbox(c, outbox)
+
+	// conn := bufio.NewReader(c)
+
+	for i := 1;  i <= 4; i++ {
+        go sendFromOutbox(c, outbox)
+    }
+
+	inbox := make(chan IncomingTCPMessage)
+	go parseMessage(n,inbox)
+	
 	for {
 			p := make([]byte, 1024)
 			_, err := c.Read(p)
@@ -384,14 +441,47 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 					fmt.Println("EOF detected")
 					break
 				}
-
 					
 			} else {
-				n.inboxTCP<- IncomingTCPMessage{
+				inbox<- IncomingTCPMessage{
 					Msg: p,
 					outbox: outbox,
 				}
 			}
+
+			// message, err := bufio.NewReader(c).ReadString('\n')
+			// if err != nil {
+			// 	if err.Error() == "EOF" {
+			// 		fmt.Println("EOF detected")
+			// 		break
+			// 	}
+					
+			// } else {
+			// 	n.inboxTCP<- IncomingTCPMessage{
+			// 		Msg: message,
+			// 		outbox: outbox,
+			// 	}
+			// }
+
+
+			// buff := make([]byte, 1024)
+			// // read a single byte which contains the message length
+			// size, err := conn.ReadByte()
+			// if err != nil {
+			// 	fmt.Println("error reading byte:", err)
+			// 	continue
+			// }
+
+			// // read the full message, or return an error
+			// _, err := io.ReadFull(conn, buff[:int(size)])
+			// if err != nil {
+			// 	fmt.Println("error reading full", err)
+			// 	continue
+			// }
+			// n.inboxTCP<- IncomingTCPMessage{
+			// 	Msg: buff,
+			// 	outbox: outbox,
+			// }
 
 		
 			// fmt.Print("-> ", string(netData))
@@ -401,7 +491,7 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 
 func (n *node) sendTCPResponse(message string, outbox chan string) {
 	fmt.Println("Sending", message)
-	outbox <- (message + "*")
+	outbox <- ("*" + message + "|end*")
 }
 
 func (n *node) listenTCP() {
@@ -417,7 +507,7 @@ func (n *node) listenTCP() {
 		if err != nil {
 				fmt.Println(err)
 		} else {
-			outbox := make(chan string)
+			outbox := make(chan string, common.MAX_CHANNEL_SIZE)
 			go n.handleConnection(c, outbox)
 		}
 	}
@@ -486,7 +576,7 @@ func (n *node) Run() {
 		go n.udpHandlerRoutine()
 
 		go n.listenTCP()
-		go n.tcpHandlerRoutine()
+		// go n.tcpHandlerRoutine()
 	}
 
 	n.joinNetwork()

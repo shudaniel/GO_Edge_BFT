@@ -16,7 +16,7 @@ type PbftState struct {
 }
 
 func create_pbft_message(clientid string, id string, msg_type string, message_val string) string {
-	s := "PBFT|" + clientid + "|" + msg_type + ";" + id + ";" + message_val + ";end"
+	s := "PBFT|" + clientid + "|" + msg_type + ";" + id + ";" + message_val 
 	return s
 }
 
