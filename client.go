@@ -330,7 +330,7 @@ func main() {
 
 	for i := 0; i < num_c; i++ {
     	go client_thread( strconv.Itoa(client_id + i), zone, num_t, percent, summation_ch, start_signals[i])
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 	}
 
 	_,remoteaddr,err = ser.ReadFromUDP(p)
