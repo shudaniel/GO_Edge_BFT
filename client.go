@@ -1,5 +1,6 @@
 package main
 import (
+	"EdgeBFT/common"
     "fmt"
     "net"
     "bufio"
@@ -45,15 +46,14 @@ func NewLatencyStruct() *Latencies {
 func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 
 	parseMessage := func(input chan string, result chan float64, signal chan bool ) {
-		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9.|]*$`).MatchString 
+		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9.|_~]*$`).MatchString 
 		message := ""
 		for {
 			received_data := <- input
-			// fmt.Println("Received", received_data)
-			for _, value := range strings.Split(strings.TrimSpace(received_data), "*") {
+			for _, value := range strings.Split(strings.TrimSpace(received_data), common.MESSAGE_DELIMITER) {
 				if len(value) > 0 && isValidString(value) {
 					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
-					if len(value) > 3 && value[len(value)-3:] == "end" {
+					if value[len(value)-1:] == common.MESSAGE_ENDER {
 						
 						temp :=strings.Split(value, "|") [0]
 						temp2, err := strconv.ParseFloat((message + temp), 64)
@@ -145,7 +145,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 	for i := 0; i < num_t; i++ {
 		// p :=  make([]byte, 512)
 		i_str := strconv.Itoa(i)
-		client_request := "*CLIENT_REQUEST|" + client_id + "!" + i_str + "!10|end*"
+		client_request := common.MESSAGE_DELIMITER + "CLIENT_REQUEST|" + client_id + "!" + i_str + "!10|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
 		randnum := rand.Float64()
 		// start := time.Now()
 		if randnum <= percent {
@@ -296,7 +296,7 @@ func main() {
 	_,remoteaddr,err := ser.ReadFromUDP(p)
 
 
-	client_join := "*CLIENT_JOIN|" + strconv.Itoa(client_id) + "|" + zone + "|" + strconv.Itoa(num_c) + "|end*"
+	client_join := common.MESSAGE_DELIMITER + "CLIENT_JOIN|" + strconv.Itoa(client_id) + "|" + zone + "|" + strconv.Itoa(num_c) + "|" + common.MESSAGE_ENDER + common.MESSAGE_ENDER
 
 	// lock_mutex.Lock()
 	file, err := os.Open("addresses.txt")

@@ -2,6 +2,7 @@ package paxos
 
 import (
 	"strings"
+	"EdgeBFT/common"
 	"EdgeBFT/endorsement"
 	"sync"
 	"fmt"
@@ -30,7 +31,7 @@ func NewPaxosState() *PaxosState {
 }
 
 func majorityAchieved(count int) bool {
-	return count >= 1  // subtract one because you can already count that you voted for yourself
+	return count >= common.MAJORITY  // subtract one because you can already count that you voted for yourself
 }
 
 func (state *PaxosState) Initialize(clientid string ) {
@@ -55,8 +56,9 @@ func (state *PaxosState) Run(
 	
 	signatures := e_state.Run( preprepare_msg, id, clientid, endorsement_signals[clientid], localbroadcast )
 	
-
-	// fmt.Println("Got endorsement for ACCEPT")
+	if common.VERBOSE && common.VERBOSE_EXTRA {
+		fmt.Println("Got endorsement for ACCEPT")
+	}
 	// Get endorsement for this message
 	// Do not send message to yourself. Just ack it immediately
 	state.counter.Store(message, 1)
@@ -66,7 +68,10 @@ func (state *PaxosState) Run(
 	if !committed {
 		fmt.Println("Paxos failed???")
 	}
-	// fmt.Println("Paxos succeeded")
+
+	if common.VERBOSE && common.VERBOSE_EXTRA {
+		fmt.Println("Paxos succeeded")
+	}
 
 	return committed
 	
@@ -125,7 +130,9 @@ func (state *PaxosState) HandleMessage(
 				broadcast("PAXOS|" + s + "/" + signatures)
 				
 			} (new_chan, s, id, clientid, endorsement_signals, e_state, localbroadcast, broadcast)
-			// fmt.Printf("Quorum achieved for %s\n", message)
+			if common.VERBOSE && common.VERBOSE_EXTRA {
+				fmt.Printf("AcceptAck quorum for %s\n", message)
+			}
 			<-new_chan
 			signals[clientid] <- true
 		} else {

@@ -6,7 +6,8 @@ import (
 	"sync"
 	"crypto/rsa"
 	"encoding/hex"
-	// "fmt"
+	"fmt"
+	
 )
 
 type EndorsementState struct {
@@ -120,7 +121,9 @@ func (state *EndorsementState) HandleMessage(
 			// interf, _ = state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
 			// state.counter_promise.Store(msg_value + "E_PROMISE", interf.(int) + 1)
 			// state.locks[promise_key].Unlock()
-			// fmt.Printf("Quorum endorsement achieved, message signed %s\n", message)
+			if common.VERBOSE && common.VERBOSE_EXTRA {
+				fmt.Printf("Quorum endorsement achieved, message signed %s\n", message)
+			}
 			
 		} else {
 			state.counter_prepare.Store(msg_value + "E_PREPARE", count + increment_amount)
@@ -132,7 +135,9 @@ func (state *EndorsementState) HandleMessage(
 		// First, verify the message
 		cipher, err := hex.DecodeString(components[5])
 		if err != nil || !common.VerifyWithPublicKey([]byte(msg_value), cipher, public_keys[nodeid] ) {
-			// fmt.Println("Failed verification for", msg_value, "from", nodeid, ". LENGTH:", len(msg_value))
+			if common.VERBOSE && common.VERBOSE_EXTRA {
+				fmt.Println("Failed verification for", msg_value, "from", nodeid, ". LENGTH:", len(msg_value))
+			}
 			return
 		}
 		signature_str = components[5]
@@ -154,7 +159,9 @@ func (state *EndorsementState) HandleMessage(
 			// Value has been committed
 			// Signal other channel
 			if ch, ok := signals[clientid]; ok {
-				// fmt.Printf("Quorum promise achieved for endorsement %s\n", message)
+				if common.VERBOSE && common.VERBOSE_EXTRA {
+					fmt.Printf("Quorum promise achieved for endorsement %s\n", message)
+				}
 				ch <- signatures_str
 			}
 			// Endorsement achieved

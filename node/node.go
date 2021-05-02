@@ -22,7 +22,7 @@ import (
 )
 
 var lock_mutex = &sync.Mutex{}
-var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,/]*$`).MatchString 
+var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/]*$`).MatchString 
 
 type IncomingTCPMessage struct {
 	Msg []byte
@@ -120,7 +120,10 @@ func (n *node) reset() {
 func (n *node) createJoinMessage(reply bool) string {
 	// Send over publickey as well
 
+	
+	lock_mutex.Lock()
 	pubkey_bytes := common.PublicKeyToBytes( n.public_keys[n.id] )
+	lock_mutex.Unlock()
 	pubkey_str := hex.EncodeToString(pubkey_bytes)
 
 	msg := n.id + "|" + n.zone + "|" + pubkey_str 
@@ -178,7 +181,7 @@ func (n *node) udpHandlerRoutine() {
 	var received_data IncomingUDPMessage
 	for {
 		received_data = <- n.inboxUDP
-		for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), "*") {
+		for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), common.MESSAGE_DELIMITER) {
 			go n.handleUDPMessage(value, received_data.Address)
 		}
 
@@ -269,11 +272,12 @@ func (n *node) handleClientJoin(startingid int, zone string, num_c int) {
 func (n *node) handleClientRequest(message string, outbox chan string) {
 	components := strings.Split(message, "!")
 	client_id := components[0]
-	var success bool
-	start := time.Now()
+
 	ch := make(chan bool)
 	txn_type := "l"
-	
+
+	total_time := 0.0
+	start := time.Now()
 	if n.client_list[client_id] {
 		// fmt.Println("%s is in client list", client_id)
 		go func(message string, id string, client_id string, ch chan bool, broadcast func(string), result chan bool) {
@@ -295,19 +299,19 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 		// success = n.paxos_state.Run(message, n.id, n.zone, client_id, n.paxos_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state)
 	}
 	select {
-    case success = <-ch:
-        break
+    case <-ch:
+		end := time.Now()
+		difference := end.Sub(start)
+		total_time = difference.Seconds() 
+		if common.VERBOSE && common.VERBOSE_EXTRA {
+			fmt.Println("Got response from paxos for ", message, txn_type, total_time)
+		}
     case <-time.After(common.TIMEOUT * time.Second):
-       success = false
+		if common.VERBOSE {
+			fmt.Println("TIMEOUT on", message, txn_type)
+		}
     }
-	end := time.Now()
-	difference := end.Sub(start)
-	total_time := difference.Seconds() 
 	
-	if !success {
-		fmt.Println("FAILED on", message, txn_type)
-		total_time = 0.0
-	} 
 	// n.sendUDPResponse(fmt.Sprintf("%f", total_time), addr)
 	n.sendTCPResponse(fmt.Sprintf("%f", total_time), outbox)
 	// fmt.Println("Total time: %d", total_time)
@@ -328,7 +332,9 @@ func (n *node) broadcastInterzonal(message string) {
 
 func (n *node) handleTCPMessage(message string, outbox chan string) {
 	components := strings.Split(message, "|")
-	// fmt.Printf("Received: %d %s \n", len(message), message)
+	if common.VERBOSE {
+		fmt.Printf("Received: %d %s \n", len(message), message)
+	}
 	msg_type := components[0]
 	switch msg_type {
 	case "JOIN":
@@ -354,8 +360,7 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 	case "CLIENT_REQUEST":
 		request_msg := components[1]
 		n.handleClientRequest(request_msg, outbox)
-	// case "RESET":
-	// 	n.reset()
+
 	}
 }
 
@@ -382,7 +387,7 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 	fmt.Printf("Serving %s\n", c.RemoteAddr().String())
 
 	// On connect, send a JOIN message
-	join_msg := "*" + n.createJoinMessage(false) + "|end*"
+	join_msg := common.MESSAGE_DELIMITER + n.createJoinMessage(false) + "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
 	c.Write([]byte(join_msg))
 
 	// msg_bytes := append([]byte(join_msg), "\n"...)
@@ -415,11 +420,13 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 		message := ""
 		for {
 			received_data = <- inbox
-			
-			for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), "*") {
+			for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), common.MESSAGE_DELIMITER) {
+				if common.VERBOSE && common.VERBOSE_EXTRA {
+					fmt.Println("Raw Received", value)
+				}
 				if len(value) > 0 && isValidString(value) {
 					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
-					if len(value) > 3 && value[len(value)-3:] == "end" {
+					if value[len(value)-1:] == common.MESSAGE_ENDER {
 						go n.handleTCPMessage(message + value, received_data.outbox)
 						message = ""
 					} else {
@@ -442,8 +449,8 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
         go sendFromOutbox(c, outbox)
     }
 
-	inbox := make(chan IncomingTCPMessage)
-	go parseMessage(n,inbox)
+	inbox := make(chan IncomingTCPMessage, common.MAX_CHANNEL_SIZE)
+	go parseMessage(n,inbox)	
 	
 	for {
 			p := make([]byte, 1024)
@@ -502,8 +509,10 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 }
 
 func (n *node) sendTCPResponse(message string, outbox chan string) {
-	// fmt.Println("Sending", message)
-	outbox <- ("*" + message + "|end*")
+	if common.VERBOSE {
+		fmt.Println("Sending", message)
+	}
+	outbox <- (common.MESSAGE_DELIMITER + message + "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER)
 }
 
 func (n *node) listenTCP() {
@@ -572,7 +581,7 @@ func (n *node) sendUDPResponse(message string, addr *net.UDPAddr) {
 	// Place the message on an outbox
 	n.outboxUDP <- OutgoingUDPMessage{
 		recipient: addr,
-		data: []byte(message + "*"),
+		data: []byte(message + common.MESSAGE_DELIMITER),
 	}
 	// _,err := n.sock.WriteToUDP([]byte(message + "*"), addr)
 	// if err != nil {

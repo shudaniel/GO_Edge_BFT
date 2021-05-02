@@ -6,7 +6,13 @@ package common
 
 const (
 	TIMEOUT = 4
+	MAJORITY = 2
 	MAX_CHANNEL_SIZE = 5000
+	MESSAGE_ENDER = "~"
+	MESSAGE_DELIMITER = "*"
+	VERBOSE = false   // Only print received messages, sent messages, and timeouts
+	VERBOSE_EXTRA = false // Print additional information. VERBOSE must also be true
+
 )
 
 func HasQuorum(count int, f int) bool {
