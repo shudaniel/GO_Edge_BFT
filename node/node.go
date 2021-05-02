@@ -323,7 +323,7 @@ func (n *node) broadcastInterzonal(message string) {
 
 func (n *node) handleTCPMessage(message string, outbox chan string) {
 	components := strings.Split(message, "|")
-	fmt.Printf("Received: %d %s \n", len(message), message)
+	// fmt.Printf("Received: %d %s \n", len(message), message)
 	msg_type := components[0]
 	switch msg_type {
 	case "JOIN":
