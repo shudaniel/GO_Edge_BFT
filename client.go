@@ -225,6 +225,8 @@ func summation(num_t int, ch chan float64, exit chan FinalResult) {
 }
 
 func main() {
+
+	rand.Seed(10)
 	num_c := 10
 	num_t := 10
 	zone := "0"
