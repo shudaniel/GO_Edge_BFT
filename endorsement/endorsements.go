@@ -160,7 +160,7 @@ func (state *EndorsementState) HandleMessage(
 			// Endorsement achieved
 		} else {
 			state.counter_promise.Store(msg_value + "E_PROMISE", count + 1)
-			if count >= 0 { 
+			if count >= 0 && count < len(state.signatures[clientid]) { 
 				state.signatures[clientid][count] = signature_str
 			}
 			state.locks[promise_key].Unlock()
