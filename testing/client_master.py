@@ -12,7 +12,7 @@ args = parser.parse_args()
 
 
 clients = [
-    ("54.183.134.86", 7000),
+    ("13.52.243.105", 8000),
 ]
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -35,7 +35,7 @@ for i in range(len(clients)):
     print(clients[i])
     sock.sendto(startmsg, clients[i])
 
-time.sleep(10)
+start = input("Push any key to start again")
 start_time = time.time()
 for i in range(len(clients)):
     startmsg = "start".encode('utf-8')
