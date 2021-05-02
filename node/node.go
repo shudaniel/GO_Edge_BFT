@@ -500,7 +500,7 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 }
 
 func (n *node) sendTCPResponse(message string, outbox chan string) {
-	fmt.Println("Sending", message)
+	// fmt.Println("Sending", message)
 	outbox <- ("*" + message + "|end*")
 }
 
