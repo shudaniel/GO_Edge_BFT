@@ -148,7 +148,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 		client_request := common.MESSAGE_DELIMITER + "CLIENT_REQUEST|" + client_id + "!" + i_str + "!10|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
 		randnum := rand.Float64()
 		// start := time.Now()
-		if randnum <= percent {
+		if randnum < percent {
 			directory["global"].Write([]byte(client_request))
 			// fmt.Fprintf(directory["global"], client_request)
 
