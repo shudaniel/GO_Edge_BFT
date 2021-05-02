@@ -246,20 +246,24 @@ func (n *node) handleJoin(message_components []string, outbox chan string, reply
 // 	}
 }
 
-func (n *node) handleClientJoin(clientid string, zone string) {
-	lock_mutex.Lock()
-	if n.zone == zone {
-		fmt.Printf("Client joining: %s\n", clientid)
-		n.client_list[clientid] = true
+func (n *node) handleClientJoin(startingid int, zone string, num_c int) {
+
+	for i := 0; i < num_c; i++ {
+		clientid := strconv.Itoa(startingid + i)
+		lock_mutex.Lock()
+		if n.zone == zone {
+			fmt.Printf("Client joining: %s\n", clientid)
+			n.client_list[clientid] = true
+		}
+		n.pbft_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
+		n.paxos_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
+		n.endorse_signals[clientid] = make(chan string, common.MAX_CHANNEL_SIZE)
+		fmt.Printf("Client locks created: %s\n", zone)
+		n.pbft_state.Initialize(clientid)
+		n.endorse_state.Initialize(clientid)
+		n.paxos_state.Initialize(clientid)
+		lock_mutex.Unlock()
 	}
-	n.pbft_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
-	n.paxos_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
-	n.endorse_signals[clientid] = make(chan string, common.MAX_CHANNEL_SIZE)
-	fmt.Printf("Client locks created: %s\n", zone)
-	n.pbft_state.Initialize(clientid)
-	n.endorse_state.Initialize(clientid)
-	n.paxos_state.Initialize(clientid)
-	lock_mutex.Unlock()
 }
 
 func (n *node) handleClientRequest(message string, outbox chan string) {
@@ -346,10 +350,7 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 		clientid := components[1]
 		pbft_msg := components[2]
 		n.pbft_state.HandleMessage(pbft_msg, n.broadcastToZone ,n.id, clientid, n.pbft_signals[clientid])
-	// case "CLIENT_JOIN":
-	// 	clientid := components[1]
-	// 	zone := components[2]
-	// 	n.handleClientJoin(clientid, zone)
+
 	case "CLIENT_REQUEST":
 		request_msg := components[1]
 		n.handleClientRequest(request_msg, outbox)
@@ -364,9 +365,10 @@ func (n *node) handleUDPMessage(message string, addr *net.UDPAddr) {
 	msg_type := components[0]
 	switch msg_type {
 	case "CLIENT_JOIN":
-		clientid := components[1]
+		clientid, _ :=  strconv.Atoi(components[1])
 		zone := components[2]
-		n.handleClientJoin(clientid, zone)
+		num_c, _ := strconv.Atoi(components[3])
+		n.handleClientJoin(clientid, zone, num_c)
 	// case "CLIENT_REQUEST":
 	// 	request_msg := components[1]
 	// 	n.handleClientRequest(request_msg, addr)

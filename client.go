@@ -97,33 +97,7 @@ func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 
 func client_thread(client_id string, zone string, num_t int, percent float64, summation_ch chan float64, start_signal <-chan bool) {
 
-	client_join := "*CLIENT_JOIN|" + client_id + "|" + zone + "|end*"
-
-	// lock_mutex.Lock()
-	file, err := os.Open("addresses.txt")
-	if err != nil {
-		fmt.Println("Error opening addresses")
-		fmt.Println(err)
-		return
-	}
-
-	// l := NewLatencyStruct()
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		line_component := strings.Split(line, " ")
-		conn, err := net.Dial("udp", line_component[0] + ":" + line_component[1])
-		if err != nil {
-			fmt.Printf("Some error %v", err)
-			return
-		} 
-
-		fmt.Fprintf(conn, client_join)
-
-		conn.Close()
-	}
-	file.Close()
-	// lock_mutex.Unlock()
+	
 
 	var addresses []Address
 	file2, _ := ioutil.ReadFile("testing/primaries.json")
@@ -143,7 +117,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 
 			p := make([]byte, 1024)
 			_, err = conn2.Read(p)
-			fmt.Println("Received:", string(p))
+			// fmt.Println("Received:", string(p))
 
 			go handleConnection(conn2, summation_ch, signal)
 		}
@@ -156,7 +130,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 			directory["global"] = conn2
 			p := make([]byte, 1024)
 			_, err = conn2.Read(p)
-			fmt.Println("Received:", string(p))
+			// fmt.Println("Received:", string(p))
 
 			go handleConnection(conn2, summation_ch, signal)
 		}
@@ -298,6 +272,8 @@ func main() {
 
 	}
 
+
+
 	p := make([]byte, 2048)
     addr := net.UDPAddr{
         Port: port,
@@ -318,6 +294,36 @@ func main() {
 	}
 
 	_,remoteaddr,err := ser.ReadFromUDP(p)
+
+
+	client_join := "*CLIENT_JOIN|" + strconv.Itoa(client_id) + "|" + zone + "|" + strconv.Itoa(num_c) + "|end*"
+
+	// lock_mutex.Lock()
+	file, err := os.Open("addresses.txt")
+	if err != nil {
+		fmt.Println("Error opening addresses")
+		fmt.Println(err)
+		return
+	}
+
+	// l := NewLatencyStruct()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		line_component := strings.Split(line, " ")
+		conn, err := net.Dial("udp", line_component[0] + ":" + line_component[1])
+		if err != nil {
+			fmt.Printf("Some error %v", err)
+			return
+		} 
+
+		fmt.Fprintf(conn, client_join)
+
+		conn.Close()
+	}
+	file.Close()
+	// lock_mutex.Unlock()
+
 
 	go summation(num_t * num_c, summation_ch, final_result_ch)
 	// ch := make(chan *Latencies)
