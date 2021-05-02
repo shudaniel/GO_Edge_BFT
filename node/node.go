@@ -323,7 +323,7 @@ func (n *node) broadcastInterzonal(message string) {
 
 func (n *node) handleTCPMessage(message string, outbox chan string) {
 	components := strings.Split(message, "|")
-	// fmt.Printf("Received: %d %s \n", len(message), message)
+	fmt.Printf("Received: %d %s \n", len(message), message)
 	msg_type := components[0]
 	switch msg_type {
 	case "JOIN":
@@ -345,12 +345,21 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 		clientid := components[1]
 		pbft_msg := components[2]
 		n.pbft_state.HandleMessage(pbft_msg, n.broadcastToZone ,n.id, clientid, n.pbft_signals[clientid])
+	// case "CLIENT_JOIN":
+	// 	clientid := components[1]
+	// 	zone := components[2]
+	// 	n.handleClientJoin(clientid, zone)
+	// case "CLIENT_REQUEST":
+	// 	request_msg := components[1]
+	// 	n.handleClientRequest(request_msg, outbox)
+	// case "RESET":
+	// 	n.reset()
 	}
 }
 
 func (n *node) handleUDPMessage(message string, addr *net.UDPAddr) {
 	components := strings.Split(message, "|")
-	// fmt.Printf("Received: %s \n", message)
+	fmt.Printf("Received: %s \n", message)
 	msg_type := components[0]
 	switch msg_type {
 	case "CLIENT_JOIN":
