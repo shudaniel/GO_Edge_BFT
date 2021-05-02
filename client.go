@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"math/rand"
+	"regexp"
 
 )
 
@@ -41,9 +42,62 @@ func NewLatencyStruct() *Latencies {
 	return &newL
 }
 
-func client_thread(client_id string, zone string, num_t int, percent float64,  ch chan *Latencies, summation_ch chan float64, start_signal <-chan bool) {
+func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 
-	client_join := "CLIENT_JOIN|" + client_id + "|" + zone + "*"
+	parseMessage := func(input chan string, result chan float64, signal chan bool ) {
+		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9.|]*$`).MatchString 
+		message := ""
+		for {
+			received_data := <- input
+			// fmt.Println("Received", received_data)
+			for _, value := range strings.Split(strings.TrimSpace(received_data), "*") {
+				if len(value) > 0 && isValidString(value) {
+					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
+					if len(value) > 3 && value[len(value)-3:] == "end" {
+						
+						temp :=strings.Split(value, "|") [0]
+						temp2, err := strconv.ParseFloat((message + temp), 64)
+						if err != nil {
+							fmt.Println(err)
+						} else {
+							// fmt.Println(temp2)
+							result <- temp2
+							signal <- true
+						}
+						message = ""
+					} else {
+						message = message + value
+					}
+					
+				}
+			}
+			
+			
+
+		}
+	}
+
+	input := make(chan string, 1000)
+
+	
+	go parseMessage(input, results, signal)
+
+	for {
+		p := make([]byte, 128)
+		_, err := c.Read(p)
+		if err == nil {
+			input <- string(p)
+		}
+		// temp := (strings.Split(string( p ), "*"))[1]
+		// fmt.Println("Temp:", temp)
+		// latency_time, _ := strconv.ParseFloat( strings.Split(temp, "|")[0], 64)
+
+	}
+}
+
+func client_thread(client_id string, zone string, num_t int, percent float64, summation_ch chan float64, start_signal <-chan bool) {
+
+	client_join := "*CLIENT_JOIN|" + client_id + "|" + zone + "|end*"
 
 	// lock_mutex.Lock()
 	file, err := os.Open("addresses.txt")
@@ -53,7 +107,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 		return
 	}
 
-	l := NewLatencyStruct()
+	// l := NewLatencyStruct()
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -62,7 +116,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 		if err != nil {
 			fmt.Printf("Some error %v", err)
 			return
-		}
+		} 
 
 		fmt.Fprintf(conn, client_join)
 
@@ -77,92 +131,123 @@ func client_thread(client_id string, zone string, num_t int, percent float64,  c
 
 	// Make a map to use either your zone primmary or primary 0
 	directory := make(map[string]net.Conn)
-
+	signal := make(chan bool)
 	for j := 0; j < len(addresses); j++ {
 		if addresses[j].Zone == zone {
-			conn2, err := net.Dial("udp", addresses[j].Ip + ":" + addresses[j].Port)
+			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 			directory["local"] = conn2
+
+			p := make([]byte, 1024)
+			_, err = conn2.Read(p)
+			fmt.Println("Received:", string(p))
+
+			go handleConnection(conn2, summation_ch, signal)
 		}
 		if addresses[j].Zone == "0" {
-			conn2, err := net.Dial("udp", addresses[j].Ip + ":" + addresses[j].Port)
+			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 			directory["global"] = conn2
+			p := make([]byte, 1024)
+			_, err = conn2.Read(p)
+			fmt.Println("Received:", string(p))
+
+			go handleConnection(conn2, summation_ch, signal)
 		}
 	}
 
-
+	
+	// Read the start signal
 	<-start_signal
 	// fmt.Println("Got signal, starting now")
 
-	client_starttime := time.Now()
+	// client_starttime := time.Now()
 	for i := 0; i < num_t; i++ {
-		p :=  make([]byte, 2048)
+		// p :=  make([]byte, 512)
 		i_str := strconv.Itoa(i)
-		client_request := "CLIENT_REQUEST|" + client_id + "!" + i_str + "!10*"
+		client_request := "*CLIENT_REQUEST|" + client_id + "!" + i_str + "!10|end*"
 		randnum := rand.Float64()
 		// start := time.Now()
 		if randnum <= percent {
-			fmt.Fprintf(directory["global"], client_request)
+			directory["global"].Write([]byte(client_request))
+			// fmt.Fprintf(directory["global"], client_request)
 
-			_, err = bufio.NewReader(directory["global"]).Read(p)
-			if err == nil {
-				// fmt.Printf("%s\n", p)
-			} else {
-				fmt.Printf("Some error %v\n", err)
-			}
+			// _, err = bufio.NewReader(directory["global"]).Read(p)
+			// if err == nil {
+			// 	// fmt.Printf("%s\n", p)
+			// } else {
+			// 	fmt.Printf("Some error %v\n", err)
+			// }
 			// fmt.Println("Received", string(p), "g")
 
 		} else {
-			fmt.Fprintf(directory["local"], client_request)
+			directory["local"].Write([]byte(client_request))
+			// fmt.Fprintf(directory["local"], client_request)
 
-			_, err = bufio.NewReader(directory["local"]).Read(p)
-			if err == nil {
-				// fmt.Printf("%s\n", p)
-			} else {
-				fmt.Printf("Some error %v\n", err)
-			}
+			// _, err = bufio.NewReader(directory["local"]).Read(p)
+			// if err == nil {
+			// 	// fmt.Printf("%s\n", p)
+			// } else {
+			// 	fmt.Printf("Some error %v\n", err)
+			// }
 
 			// fmt.Println("Received", string(p), "l")
 		}
+		<-signal
 		
+	// 	temp := (strings.Split(string( p ), "*"))[1]
+	// 	fmt.Println("Temp:", temp)
+	// 	latency_time, _ := strconv.ParseFloat( strings.Split(temp, "|")[0], 64)
 
-		latency_time, _ := strconv.ParseFloat((strings.Split(string( p ), "*")[0]), 64)
-
-		if err == nil && latency_time > 0 {
-			// difference := end.Sub(start)
-			// total_time := difference.Seconds() 
-			lock_mutex.Lock()
-			l.times = append(l.times, latency_time)
-			lock_mutex.Unlock()
-			summation_ch <-latency_time
-		} else {
-			fmt.Print("Failure on", client_request)
-		}
+	// 	if err == nil && latency_time > 0 {
+	// 		// difference := end.Sub(start)
+	// 		// total_time := difference.Seconds() 
+	// 		lock_mutex.Lock()
+	// 		l.times = append(l.times, latency_time)
+	// 		lock_mutex.Unlock()
+	// 		summation_ch <-latency_time
+	// 	} else {
+	// 		fmt.Println("Failure on", client_request, latency_time)
+	// 	}
 	}
 
-	lock_mutex.Lock()
-	l.client_start = client_starttime
-	lock_mutex.Unlock()
+	// lock_mutex.Lock()
+	// l.client_start = client_starttime
+	// lock_mutex.Unlock()
 
-	ch <- l
+	// ch <- l
+
+	directory["local"].Close()
+	directory["global"].Close()
 }	
 
-func summation(num_t int, ch chan float64, exit chan float64) {
+type FinalResult struct {
+	total_latencies  float64
+	num_successes  int
+}
+
+func summation(num_t int, ch chan float64, exit chan FinalResult) {
 	total := 0.0
+	num_successes := 0
 	var newval float64
 	for i := 0; i < num_t; i++ {	
 		newval = <- ch
 		total += newval
-		fmt.Println(i)
+		// fmt.Println(i)
+		if newval > 0 {
+			num_successes++
+		}
 	}
-	exit <- total
+	exit <- FinalResult {
+		total_latencies: total,
+		num_successes: num_successes,
+	}
 }
 
 func main() {
@@ -225,7 +310,7 @@ func main() {
     }
 
 	summation_ch := make(chan float64)
-	final_result_ch := make(chan float64)
+	final_result_ch := make(chan FinalResult)
 	start_signals := make(map[int]chan bool)
 
 	for k := 0; k < num_c; k++ {
@@ -235,10 +320,10 @@ func main() {
 	_,remoteaddr,err := ser.ReadFromUDP(p)
 
 	go summation(num_t * num_c, summation_ch, final_result_ch)
-	ch := make(chan *Latencies)
+	// ch := make(chan *Latencies)
 
 	for i := 0; i < num_c; i++ {
-    	go client_thread( strconv.Itoa(client_id + i), zone, num_t, percent, ch, summation_ch, start_signals[i])
+    	go client_thread( strconv.Itoa(client_id + i), zone, num_t, percent, summation_ch, start_signals[i])
 	}
 
 	_,remoteaddr,err = ser.ReadFromUDP(p)
@@ -247,17 +332,17 @@ func main() {
 		start_signals[h] <-true
 	}
 	
-	min_time := time.Now()
-	for j := 0; j < num_c; j++ {
-		latency_result :=  <-ch
-		if latency_result.client_start.Before(min_time) {
-			min_time = latency_result.client_start
-		}
-	}
+	// min_time := time.Now()
+	// for j := 0; j < num_c; j++ {
+	// 	latency_result :=  <-ch
+	// 	if latency_result.client_start.Before(min_time) {
+	// 		min_time = latency_result.client_start
+	// 	}
+	// }
 
 	final_sum := <-final_result_ch
 
-	message := "Total latency:" + strconv.FormatFloat(final_sum, 'f', 6, 64) + "|" + strconv.Itoa(int(min_time.Unix())) + "|" + strconv.Itoa(num_c * num_t) + "*"
+	message := "Total latency:" + strconv.FormatFloat(final_sum.total_latencies, 'f', 6, 64) + "|" + strconv.Itoa(final_sum.num_successes) + "*"
 	_,err = ser.WriteToUDP([]byte(message), remoteaddr)
     if err != nil {
         fmt.Printf("Couldn't send response %v", err)
