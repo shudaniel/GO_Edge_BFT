@@ -12,7 +12,7 @@ args = parser.parse_args()
 
 
 clients = [
-    ("13.52.78.206", 8000),
+    ("54.183.134.86", 7000),
 ]
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
