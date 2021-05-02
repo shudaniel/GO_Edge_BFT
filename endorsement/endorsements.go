@@ -38,7 +38,7 @@ func (state *EndorsementState) GetF() int {
 	return state.failures
 }
 
-func (state *EndorsementState) Initialize(clientid string ) 
+func (state *EndorsementState) Initialize(clientid string ) {
 	// fmt.Println("initialize endorsement")
 	state.signatures[clientid] = []string{"", "", ""}
 	state.locks[clientid + "E_PREPARE"] = &sync.Mutex{}
