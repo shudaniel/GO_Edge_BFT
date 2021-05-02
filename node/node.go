@@ -205,7 +205,7 @@ func (n *node) udpHandlerRoutine() {
 // }
 
 func (n *node) broadcastToZone(msg string) {
-	fmt.Println("Broadcast to zone:", msg)
+	// fmt.Println("Broadcast to zone:", msg)
 	if inner_dir, ok := n.directory[n.zone]; ok {
 		for nodeid, outbox := range inner_dir {
 			if nodeid != n.id {
@@ -490,7 +490,7 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 }
 
 func (n *node) sendTCPResponse(message string, outbox chan string) {
-	fmt.Println("Sending", message)
+	// fmt.Println("Sending", message)
 	outbox <- ("*" + message + "|end*")
 }
 
