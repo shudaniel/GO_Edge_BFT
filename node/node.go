@@ -307,9 +307,9 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 			fmt.Println("Got response from paxos for ", message, txn_type, total_time)
 		}
     case <-time.After(common.TIMEOUT * time.Second):
-		if common.VERBOSE {
-			fmt.Println("TIMEOUT on", message, txn_type)
-		}
+		
+		fmt.Println("TIMEOUT on", message, txn_type)
+		
     }
 	
 	// n.sendUDPResponse(fmt.Sprintf("%f", total_time), addr)
