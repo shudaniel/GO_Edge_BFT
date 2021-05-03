@@ -7,12 +7,14 @@ import (
 	"crypto/rsa"
 	"encoding/hex"
 	"fmt"
-	
+	"strconv"
 )
 
 type EndorsementState struct {
-	counter_prepare           sync.Map
-	counter_promise           sync.Map
+	// counter_prepare map[string]*Counter
+	
+	counter_prepare           map[string]*common.Counter
+	counter_promise           map[string]*common.Counter
 	signatures                map[string][]string
 	failures          int
 	locks             map[string]*sync.Mutex
@@ -20,8 +22,8 @@ type EndorsementState struct {
 
 func NewEndorseState(f int) *EndorsementState {
 	newState := EndorsementState{
-		counter_prepare:          	sync.Map{},
-		counter_promise:          	sync.Map{},
+		counter_prepare:          	make(map[string]*common.Counter),
+		counter_promise:          	make(map[string]*common.Counter),
 		signatures: make(map[string][]string),
 		locks:  make(map[string]*sync.Mutex),
 		failures: f,
@@ -31,8 +33,8 @@ func NewEndorseState(f int) *EndorsementState {
 	return &newState
 }
 
-func createEndorseMsg(msg_type string, message string, nodeid string, original_senderid string, clientid string) string {
-	return "ENDORSE|"  + msg_type + ";" + nodeid +  ";" + original_senderid + ";" + clientid + ";" + message 
+func createEndorseMsg(msg_type string, message string, nodeid string, original_senderid string, clientid string, seq_num int) string {
+	return "ENDORSE|"  + msg_type + ";" + nodeid +  ";" + original_senderid + ";" + clientid + ";" + strconv.Itoa(seq_num) + ";" + message 
 }
 
 func (state *EndorsementState) GetF() int {
@@ -41,6 +43,17 @@ func (state *EndorsementState) GetF() int {
 
 func (state *EndorsementState) Initialize(clientid string ) {
 	// fmt.Println("initialize endorsement")
+	newPrepareCounter := common.Counter {
+		Seq: -1,
+		Count: 0,
+	}
+	newPromiseCounter := common.Counter {
+		Seq: -1,
+		Count: 0,
+	}
+	state.counter_prepare[clientid] = &newPrepareCounter
+	state.counter_promise[clientid] = &newPromiseCounter
+
 	state.signatures[clientid] = []string{"", "", ""}
 	state.locks[clientid + "E_PREPARE"] = &sync.Mutex{}
 	state.locks[clientid + "E_PROMISE"] = &sync.Mutex{}
@@ -49,6 +62,7 @@ func (state *EndorsementState) Initialize(clientid string ) {
 
 func (state *EndorsementState) Run(
 	message string, 
+	seq int,
 	id string, 
 	clientid string,
 	ch <-chan string,
@@ -57,8 +71,11 @@ func (state *EndorsementState) Run(
 ) string {
 
 
-	preprepare_msg := createEndorseMsg("E_PRE_PREPARE", message, id, id, clientid)
-	state.counter_prepare.Store(message  + "E_PREPARE", 1)
+	preprepare_msg := createEndorseMsg("E_PRE_PREPARE", message, id, id, clientid, seq)
+	state.counter_prepare[clientid].Seq = seq
+	state.counter_prepare[clientid].Count = 1
+
+	// state.counter_prepare.Store(message  + "E_PREPARE", 1)
 	
 	// fmt.Printf("E_PREPARE_COUNT before sending preprepares with key: %s : %v\n", message + "E_PREPARE", state.counter[message + "E_PREPARE"])
 	go broadcast(preprepare_msg)
@@ -83,7 +100,8 @@ func (state *EndorsementState) HandleMessage(
 	nodeid := components[1]
 	original_senderid := components[2]
 	clientid := components[3]
-	msg_value := components[4]
+	seq_num, _ := strconv.Atoi(components[4])
+	msg_value := components[5]
 
 	prepare_key := clientid + "E_PREPARE"
 	promise_key := clientid + "E_PROMISE"
@@ -95,17 +113,29 @@ func (state *EndorsementState) HandleMessage(
 
 
 	case "E_PRE_PREPARE":
-		s := createEndorseMsg( "E_PREPARE", msg_value, id, original_senderid, clientid )
+		s := createEndorseMsg( "E_PREPARE", msg_value, id, original_senderid, clientid, seq_num )
 		increment_amount++
 		broadcast(s)
 		fallthrough
 	case "E_PREPARE":
 		
 		state.locks[prepare_key].Lock()
-		interf, _ := state.counter_prepare.LoadOrStore(msg_value + "E_PREPARE", 0)
-		count := interf.(int) 
-		if common.HasQuorum(count + increment_amount, state.failures) {
-			state.counter_prepare.Store(msg_value + "E_PREPARE", -30)
+
+		if seq_num < state.counter_prepare[clientid].Seq  {
+			state.locks[prepare_key].Unlock()
+			return
+		} else if seq_num == state.counter_prepare[clientid].Seq {
+			state.counter_prepare[clientid].Count += increment_amount
+		} else {
+			state.counter_prepare[clientid].Seq = seq_num
+			state.counter_prepare[clientid].Count = increment_amount
+		}
+
+		// interf, _ := state.counter_prepare.LoadOrStore(msg_value + "E_PREPARE", 0)
+		// count := interf.(int) 
+		if common.HasQuorum(state.counter_prepare[clientid].Count, state.failures) {
+			state.counter_prepare[clientid].Count = -30
+			// state.counter_prepare.Store(msg_value + "E_PREPARE", -30)
 			state.locks[prepare_key].Unlock()
 
 			// Sign the original value and send back
@@ -113,7 +143,7 @@ func (state *EndorsementState) HandleMessage(
 			signed_msg := common.SignWithPrivateKey( []byte(msg_value), priv)
 			signature_str = hex.EncodeToString(signed_msg)
 			// fmt.Println("Signed", msg_value, "by", id, ". LENGTH:", len(msg_value))
-			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid ) + ";" + signature_str
+			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid, seq_num ) + ";" + signature_str
 			sendMessage(s, original_senderid, zone)
 			achieve_prepare_quorum = true
 
@@ -126,7 +156,7 @@ func (state *EndorsementState) HandleMessage(
 			}
 			
 		} else {
-			state.counter_prepare.Store(msg_value + "E_PREPARE", count + increment_amount)
+			// state.counter_prepare.Store(msg_value + "E_PREPARE", count + increment_amount)
 			state.locks[prepare_key].Unlock()
 		}
 
@@ -144,12 +174,25 @@ func (state *EndorsementState) HandleMessage(
 	}
 	if msg_type == "E_PROMISE" || achieve_prepare_quorum {
 
+		i := state.counter_promise[clientid].Count 
 		state.locks[promise_key].Lock()
-		interf, _ := state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
-		count := interf.(int) 
-		if common.HasQuorum(count + 1, state.failures) {
-			state.signatures[clientid][count] = signature_str
-			state.counter_promise.Store(msg_value + "E_PROMISE", -30)
+		if seq_num < state.counter_promise[clientid].Seq  {
+			state.locks[prepare_key].Unlock()
+			return
+		} else if seq_num == state.counter_promise[clientid].Seq {
+			state.counter_promise[clientid].Count += 1
+		} else {
+			state.counter_promise[clientid].Seq = seq_num
+			state.counter_promise[clientid].Count = 1
+		}
+
+		// interf, _ := state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
+		// count := interf.(int) 
+		if common.HasQuorum(state.counter_promise[clientid].Count, state.failures) {
+
+			state.signatures[clientid][i] = signature_str
+			state.counter_promise[clientid].Count = -30
+			// state.counter_promise.Store(msg_value + "E_PROMISE", -30)
 			signatures_str := strings.Join(state.signatures[clientid], "/")
 			state.signatures[clientid][0] = ""
 			state.signatures[clientid][1] = ""
@@ -166,9 +209,9 @@ func (state *EndorsementState) HandleMessage(
 			}
 			// Endorsement achieved
 		} else {
-			state.counter_promise.Store(msg_value + "E_PROMISE", count + 1)
-			if count >= 0 && count < len(state.signatures[clientid]) { 
-				state.signatures[clientid][count] = signature_str
+			// state.counter_promise.Store(msg_value + "E_PROMISE", count + 1)
+			if i >= 0 && i < len(state.signatures[clientid]) { 
+				state.signatures[clientid][i] = signature_str
 			}
 			state.locks[promise_key].Unlock()
 		}
