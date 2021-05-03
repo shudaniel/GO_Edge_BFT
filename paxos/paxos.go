@@ -61,7 +61,7 @@ func (state *PaxosState) Run(
 	seq_num, _ := strconv.Atoi( strings.Split(message, "!")[1] )
 	preprepare_msg := create_paxos_message(id, "ACCEPT", message, clientid, zone)
 	
-	signatures := e_state.Run( preprepare_msg, seq_num, id, clientid, endorsement_signals[clientid], localbroadcast )
+	signatures := e_state.Run( preprepare_msg, id, clientid, endorsement_signals[clientid], localbroadcast )
 	
 	if common.VERBOSE && common.VERBOSE_EXTRA {
 		fmt.Println("Got endorsement for ACCEPT")
@@ -120,7 +120,7 @@ func (state *PaxosState) HandleMessage(
 
 	case "ACCEPT":
 		s := create_paxos_message(id, "ACCEPTACK", message_val, clientid, zone)
-		signatures := e_state.Run(s, seq_num, id, clientid, endorsement_signals[clientid], localbroadcast)
+		signatures := e_state.Run(s, id, clientid, endorsement_signals[clientid], localbroadcast)
 	
 		go sendMessage("PAXOS|" + s + "/" + signatures, sender_id,zone)
 		
@@ -144,13 +144,13 @@ func (state *PaxosState) HandleMessage(
 			s := create_paxos_message(id, "PAXOS_COMMIT", message_val, clientid, zone)
 			// Run endorsement for commit message
 			new_chan := make(chan bool)
-			go func(ch chan bool, s string, seq_num int, id string, clientid string,endorsement_signals map[string]chan string, e_state *endorsement.EndorsementState, localbroadcast func(string), broadcast func(string)) {
-				signatures := e_state.Run( s, seq_num, id, clientid, endorsement_signals[clientid], localbroadcast )
+			go func(ch chan bool, s string, id string, clientid string,endorsement_signals map[string]chan string, e_state *endorsement.EndorsementState, localbroadcast func(string), broadcast func(string)) {
+				signatures := e_state.Run( s, id, clientid, endorsement_signals[clientid], localbroadcast )
 			
 				ch<-true
 				broadcast("PAXOS|" + s + "/" + signatures)
 				
-			} (new_chan, s, seq_num, id, clientid, endorsement_signals, e_state, localbroadcast, broadcast)
+			} (new_chan, s, id, clientid, endorsement_signals, e_state, localbroadcast, broadcast)
 			if common.VERBOSE && common.VERBOSE_EXTRA {
 				fmt.Printf("AcceptAck quorum for %s\n", message)
 			}

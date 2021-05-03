@@ -33,8 +33,8 @@ func NewEndorseState(f int) *EndorsementState {
 	return &newState
 }
 
-func createEndorseMsg(msg_type string, message string, nodeid string, original_senderid string, clientid string, seq_num int) string {
-	return "ENDORSE|"  + msg_type + ";" + nodeid +  ";" + original_senderid + ";" + clientid + ";" + strconv.Itoa(seq_num) + ";" + message 
+func createEndorseMsg(msg_type string, message string, nodeid string, original_senderid string, clientid string) string {
+	return "ENDORSE|"  + msg_type + ";" + nodeid +  ";" + original_senderid + ";" + clientid + ";" + message 
 }
 
 func (state *EndorsementState) GetF() int {
@@ -62,7 +62,6 @@ func (state *EndorsementState) Initialize(clientid string ) {
 
 func (state *EndorsementState) Run(
 	message string, 
-	seq int,
 	id string, 
 	clientid string,
 	ch <-chan string,
@@ -70,8 +69,8 @@ func (state *EndorsementState) Run(
 
 ) string {
 
-
-	preprepare_msg := createEndorseMsg("E_PRE_PREPARE", message, id, id, clientid, seq)
+	seq, _ := strconv.Atoi( strings.Split(message, "!")[1] )
+	preprepare_msg := createEndorseMsg("E_PRE_PREPARE", message, id, id, clientid)
 	state.counter_prepare[clientid].Seq = seq
 	state.counter_prepare[clientid].Count = 1
 
@@ -100,8 +99,9 @@ func (state *EndorsementState) HandleMessage(
 	nodeid := components[1]
 	original_senderid := components[2]
 	clientid := components[3]
-	seq_num, _ := strconv.Atoi(components[4])
-	msg_value := components[5]
+	msg_value := components[4]
+
+	seq_num, _ := strconv.Atoi(strings.Split(msg_value, "!")[1])
 
 	prepare_key := clientid + "E_PREPARE"
 	promise_key := clientid + "E_PROMISE"
@@ -113,7 +113,7 @@ func (state *EndorsementState) HandleMessage(
 
 
 	case "E_PRE_PREPARE":
-		s := createEndorseMsg( "E_PREPARE", msg_value, id, original_senderid, clientid, seq_num )
+		s := createEndorseMsg( "E_PREPARE", msg_value, id, original_senderid, clientid )
 		increment_amount++
 		broadcast(s)
 		fallthrough
@@ -143,7 +143,7 @@ func (state *EndorsementState) HandleMessage(
 			signed_msg := common.SignWithPrivateKey( []byte(msg_value), priv)
 			signature_str = hex.EncodeToString(signed_msg)
 			// fmt.Println("Signed", msg_value, "by", id, ". LENGTH:", len(msg_value))
-			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid, seq_num ) + ";" + signature_str
+			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid ) + ";" + signature_str
 			sendMessage(s, original_senderid, zone)
 			achieve_prepare_quorum = true
 
