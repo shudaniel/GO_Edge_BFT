@@ -47,6 +47,8 @@ for i in range(len(clients)):
     print(clients[i])
     sock.sendto(startmsg, clients[i])
 
+earliest = 0
+latest = 0
 while True:
     data, addr = sock.recvfrom(1024)
     endtime = time.time()
@@ -58,4 +60,8 @@ while True:
     print("Value from before:", endtime - start_time)
     end = int(msg_split[2])/1000000000
     start = int(msg_split[1])/1000000000
-    print("Total time:", end - start)
+    if end > latest:
+        latest = end
+    if earliest == 0 or start < earliest:
+        earliest = start
+    print("Total time:", latest - earliest)
