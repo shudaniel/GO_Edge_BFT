@@ -297,7 +297,7 @@ func main() {
 	_,remoteaddr,err := ser.ReadFromUDP(p)
 
 
-	client_join := common.MESSAGE_DELIMITER + "CLIENT_JOIN|" + strconv.Itoa(client_id) + "|" + zone + "|" + strconv.Itoa(num_c) + "|" + common.MESSAGE_ENDER + common.MESSAGE_ENDER
+	client_join := common.MESSAGE_DELIMITER + "CLIENT_JOIN|" + strconv.Itoa(client_id) + "|" + zone + "|" + strconv.Itoa(num_c) + "|" + strconv.Itoa(num_t) + "|" + common.MESSAGE_ENDER + common.MESSAGE_ENDER
 
 	// lock_mutex.Lock()
 	file, err := os.Open("addresses.txt")
