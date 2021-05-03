@@ -340,6 +340,7 @@ func main() {
 	}
 
 	_,remoteaddr,err := ser.ReadFromUDP(p)
+	fmt.Println("First signal received")
 
 
 	client_join := common.MESSAGE_DELIMITER + "CLIENT_JOIN|" + strconv.Itoa(client_id) + "|" + zone + "|" + strconv.Itoa(num_c) + "|" + common.MESSAGE_ENDER + common.MESSAGE_ENDER
@@ -380,6 +381,7 @@ func main() {
 	}
 
 	_,remoteaddr,err = ser.ReadFromUDP(p)
+	fmt.Println("Second signal received")
 
 	for h := 0; h < num_c; h++ {
 		start_signals[h] <-true
