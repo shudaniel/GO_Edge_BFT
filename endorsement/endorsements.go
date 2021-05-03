@@ -33,8 +33,8 @@ func NewEndorseState(f int) *EndorsementState {
 	return &newState
 }
 
-func createEndorseMsg(msg_type string, message string, nodeid string, original_senderid string, clientid string) string {
-	return "ENDORSE|"  + msg_type + ";" + nodeid +  ";" + original_senderid + ";" + clientid + ";" + message 
+func createEndorseMsg(msg_type string, message string, nodeid string, original_senderid string, clientid string, seq_num int) string {
+	return "ENDORSE|"  + msg_type + ";" + nodeid +  ";" + original_senderid + ";" + clientid + ";" + message + ";" + strconv.Itoa(seq_num)
 }
 
 func (state *EndorsementState) GetF() int {
@@ -62,6 +62,7 @@ func (state *EndorsementState) Initialize(clientid string ) {
 
 func (state *EndorsementState) Run(
 	message string, 
+	seq int,
 	id string, 
 	clientid string,
 	ch <-chan string,
@@ -69,8 +70,8 @@ func (state *EndorsementState) Run(
 
 ) string {
 
-	seq, _ := strconv.Atoi( strings.Split(message, "!")[1] )
-	preprepare_msg := createEndorseMsg("E_PRE_PREPARE", message, id, id, clientid)
+	// seq, _ := strconv.Atoi( strings.Split(message, "!")[1] )
+	preprepare_msg := createEndorseMsg("E_PRE_PREPARE", message, id, id, clientid, seq)
 	state.counter_prepare[clientid].Seq = seq
 	state.counter_prepare[clientid].Count = 1
 
@@ -101,7 +102,7 @@ func (state *EndorsementState) HandleMessage(
 	clientid := components[3]
 	msg_value := components[4]
 
-	seq_num, _ := strconv.Atoi(strings.Split(msg_value, "!")[1])
+	seq_num, _ := strconv.Atoi(components[5])
 
 	prepare_key := clientid + "E_PREPARE"
 	promise_key := clientid + "E_PROMISE"
@@ -113,7 +114,7 @@ func (state *EndorsementState) HandleMessage(
 
 
 	case "E_PRE_PREPARE":
-		s := createEndorseMsg( "E_PREPARE", msg_value, id, original_senderid, clientid )
+		s := createEndorseMsg( "E_PREPARE", msg_value, id, original_senderid, clientid, seq_num )
 		increment_amount++
 		broadcast(s)
 		fallthrough
@@ -143,7 +144,7 @@ func (state *EndorsementState) HandleMessage(
 			signed_msg := common.SignWithPrivateKey( []byte(msg_value), priv)
 			signature_str = hex.EncodeToString(signed_msg)
 			// fmt.Println("Signed", msg_value, "by", id, ". LENGTH:", len(msg_value))
-			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid ) + ";" + signature_str
+			s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid, seq_num ) + ";" + signature_str
 			sendMessage(s, original_senderid, zone)
 			achieve_prepare_quorum = true
 
@@ -162,15 +163,16 @@ func (state *EndorsementState) HandleMessage(
 
 	case "E_PROMISE":
 		// signature := components[4] 
+		signature_str = components[6]
 		// First, verify the message
-		cipher, err := hex.DecodeString(components[5])
+		cipher, err := hex.DecodeString(signature_str)
 		if err != nil || !common.VerifyWithPublicKey([]byte(msg_value), cipher, public_keys[nodeid] ) {
 			if common.VERBOSE && common.VERBOSE_EXTRA {
 				fmt.Println("Failed verification for", msg_value, "from", nodeid, ". LENGTH:", len(msg_value))
 			}
 			return
 		}
-		signature_str = components[5]
+		
 	}
 	if msg_type == "E_PROMISE" || achieve_prepare_quorum {
 
