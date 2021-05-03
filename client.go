@@ -17,6 +17,7 @@ import (
 
 )
 
+var all_start bool
 var lock_mutex = &sync.Mutex{}
 
 type Latencies struct {
@@ -155,7 +156,9 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 	
 	// Read the start signal
 	<-start_signal
+	for all_start {}
 	// fmt.Println("Got signal, starting now")
+
 
 	// client_starttime := time.Now()
 	for i := 0; i < num_t; i++ {
@@ -270,6 +273,7 @@ func summation(num_t int, ch chan Latencies, exit chan FinalResult) {
 
 func main() {
 
+	all_start = false
 	rand.Seed(10)
 	num_c := 10
 	num_t := 10
@@ -386,6 +390,7 @@ func main() {
 	for h := 0; h < num_c; h++ {
 		start_signals[h] <-true
 	}
+	all_start = true
 	
 	// min_time := time.Now()
 	// for j := 0; j < num_c; j++ {
