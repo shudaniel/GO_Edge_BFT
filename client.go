@@ -54,7 +54,7 @@ func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 				if len(value) > 0 && isValidString(value) {
 					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
 					if value[len(value)-1:] == common.MESSAGE_ENDER {
-						
+						signal <- true
 						temp :=strings.Split(value, "|") [0]
 						temp2, err := strconv.ParseFloat((message + temp), 64)
 						if err != nil {
@@ -62,7 +62,6 @@ func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 						} else {
 							// fmt.Println(temp2)
 							result <- temp2
-							signal <- true
 						}
 						message = ""
 					} else {
@@ -77,7 +76,7 @@ func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 		}
 	}
 
-	input := make(chan string, 1000)
+	input := make(chan string, 10000)
 
 	
 	go parseMessage(input, results, signal)
@@ -287,7 +286,7 @@ func main() {
         return
     }
 
-	summation_ch := make(chan float64)
+	summation_ch := make(chan float64, num_c * num_t)
 	final_result_ch := make(chan FinalResult)
 	start_signals := make(map[int]chan bool)
 
