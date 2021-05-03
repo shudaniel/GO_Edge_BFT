@@ -106,27 +106,33 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 	directory := make(map[string]net.Conn)
 	signal := make(chan bool)
 	for j := 0; j < len(addresses); j++ {
-
-		conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		p := make([]byte, 1024)
-		_, err = conn2.Read(p)
-
-		go handleConnection(conn2, summation_ch, signal)
-
 		if addresses[j].Zone == zone {
-			
+			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
 			directory["local"] = conn2
+
+			p := make([]byte, 1024)
+			_, err = conn2.Read(p)
 			// fmt.Println("Received:", string(p))
+
+			go handleConnection(conn2, summation_ch, signal)
 		}
 		if addresses[j].Zone == "0" {
-			directory["global"] = conn2			
+			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			directory["global"] = conn2
+			p := make([]byte, 1024)
+			_, err = conn2.Read(p)
 			// fmt.Println("Received:", string(p))
 
-		} 
+			go handleConnection(conn2, summation_ch, signal)
+		}
 	}
 
 	
