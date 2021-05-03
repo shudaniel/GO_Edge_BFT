@@ -45,7 +45,22 @@ func NewLatencyStruct() *Latencies {
 
 func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 
-	parseMessage := func(input chan string, result chan float64, signal chan bool ) {
+	parseMessage := func(input chan string, result chan float64) {
+		for {
+			value := <- input
+			temp := strings.Split(value, "|") [0]
+			temp2, err := strconv.ParseFloat(temp, 64)
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				// fmt.Println(temp2)
+				result <- temp2
+			}
+			
+		}
+	}
+
+	handleMessage := func(input chan string, output chan string, signal chan bool ) {
 		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9.|_~]*$`).MatchString 
 		message := ""
 		for {
@@ -55,15 +70,15 @@ func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
 					if value[len(value)-1:] == common.MESSAGE_ENDER {
 						signal <- true
-						
-						temp :=strings.Split(value, "|") [0]
-						temp2, err := strconv.ParseFloat((message + temp), 64)
-						if err != nil {
-							fmt.Println(err)
-						} else {
-							// fmt.Println(temp2)
-							result <- temp2
-						}
+						output <- (message + value)
+						// temp :=strings.Split(value, "|") [0]
+						// temp2, err := strconv.ParseFloat((message + temp), 64)
+						// if err != nil {
+						// 	fmt.Println(err)
+						// } else {
+						// 	// fmt.Println(temp2)
+						// 	result <- temp2
+						// }
 						message = ""
 					} else {
 						message = message + value
@@ -77,10 +92,11 @@ func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 		}
 	}
 
-	input := make(chan string, 10000)
-
+	input := make(chan string, 1000)
+	tunnel := make(chan string, 1000)
 	
-	go parseMessage(input, results, signal)
+	go handleMessage(input, tunnel, signal)
+	go parseMessage(tunnel, results)
 
 	for {
 		p := make([]byte, 128)
