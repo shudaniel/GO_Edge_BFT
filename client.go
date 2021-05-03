@@ -19,8 +19,9 @@ import (
 var lock_mutex = &sync.Mutex{}
 
 type Latencies struct {
-	client_start time.Time
-	times []float64
+	client_start int
+	client_end int
+	duration float64
 }
 
 type Address struct {
@@ -34,19 +35,10 @@ type Primaries struct {
   Description string
 }
 
-func NewLatencyStruct() *Latencies {
-	newL := Latencies{
-		client_start: time.Now(),
-		times: []float64{},
-	}
+func handleConnection(c net.Conn, results chan Latencies, signal chan bool) {
 
-	return &newL
-}
-
-func handleConnection(c net.Conn, results chan float64, signal chan bool) {
-
-	parseMessage := func(input chan string, result chan float64, signal chan bool ) {
-		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9.|_~]*$`).MatchString 
+	parseMessage := func(input chan string, result chan Latencies, signal chan bool ) {
+		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9.,|_~]*$`).MatchString 
 		message := ""
 		for {
 			received_data := <- input
@@ -56,12 +48,21 @@ func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 					if value[len(value)-1:] == common.MESSAGE_ENDER {
 						
 						temp :=strings.Split(value, "|") [0]
-						temp2, err := strconv.ParseFloat((message + temp), 64)
-						if err != nil {
-							fmt.Println(err)
+						complete_message := strings.Split(message + temp, ",")
+						duration, err1 := strconv.ParseFloat(complete_message[0], 64)
+						start, err2 := strconv.Atoi(complete_message[1])
+						end, err3 := strconv.Atoi(complete_message[2])
+						if err1 != nil || err2 != nil || err3 != nil {
+							fmt.Println(err1)
+							fmt.Println(err2)
+							fmt.Println(err3)
 						} else {
 							// fmt.Println(temp2)
-							result <- temp2
+							result <- Latencies {
+								client_start: start,
+								client_end: end,
+								duration: duration,
+							}
 							signal <- true
 						}
 						message = ""
@@ -77,7 +78,7 @@ func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 		}
 	}
 
-	input := make(chan string, 1000)
+	input := make(chan string, 10000)
 
 	
 	go parseMessage(input, results, signal)
@@ -95,7 +96,7 @@ func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 	}
 }
 
-func client_thread(client_id string, zone string, num_t int, percent float64, summation_ch chan float64, start_signal <-chan bool) {
+func client_thread(client_id string, zone string, num_t int, percent float64, summation_ch chan Latencies, start_signal <-chan bool) {
 
 	
 
@@ -204,23 +205,39 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 type FinalResult struct {
 	total_latencies  float64
 	num_successes  int
+	earliest int
+	latest int
 }
 
-func summation(num_t int, ch chan float64, exit chan FinalResult) {
+func summation(num_t int, ch chan Latencies, exit chan FinalResult) {
 	total := 0.0
+	earliest := 0
+	latest := 0
 	num_successes := 0
-	var newval float64
+	var newval Latencies
 	for i := 0; i < num_t; i++ {	
 		newval = <- ch
-		total += newval
+		total += newval.duration
+
 		// fmt.Println(i)
-		if newval > 0 {
+		if newval.duration > 0 {
 			num_successes++
+
+			if earliest == 0 || newval.client_start < earliest {
+			earliest = newval.client_start
+			}
+			if latest == 0 || newval.client_end > latest {
+				latest = newval.client_start
+			}
+
 		}
+
 	}
 	exit <- FinalResult {
 		total_latencies: total,
 		num_successes: num_successes,
+		earliest: earliest,
+		latest: latest,
 	}
 }
 
@@ -287,7 +304,7 @@ func main() {
         return
     }
 
-	summation_ch := make(chan float64)
+	summation_ch := make(chan Latencies)
 	final_result_ch := make(chan FinalResult)
 	start_signals := make(map[int]chan bool)
 
@@ -351,7 +368,7 @@ func main() {
 
 	final_sum := <-final_result_ch
 
-	message := "Total latency:" + strconv.FormatFloat(final_sum.total_latencies, 'f', 6, 64) + "|" + strconv.Itoa(final_sum.num_successes) + "*"
+	message := "Total latency:" + strconv.FormatFloat(final_sum.total_latencies, 'f', 6, 64) + "|" + strconv.Itoa(final_sum.earliest) + "|" + strconv.Itoa(final_sum.latest) + "|" + strconv.Itoa(final_sum.num_successes) + "*"
 	_,err = ser.WriteToUDP([]byte(message), remoteaddr)
     if err != nil {
         fmt.Printf("Couldn't send response %v", err)
