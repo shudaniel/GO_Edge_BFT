@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"regexp"
+	"math"
 
 )
 
@@ -228,6 +229,7 @@ func summation(num_t int, ch chan Latencies, exit chan FinalResult) {
 	num_successes := 0
 	earliest := 0
 	latest := 0
+	var nums[1000000] float64
 	var newval Latencies
 	for i := 0; i < num_t; i++ {	
 		newval = <- ch
@@ -245,7 +247,19 @@ func summation(num_t int, ch chan Latencies, exit chan FinalResult) {
 				latest = val
 			}
 		}
+		nums[i] = newval.time
 	}
+	// Calculate standard deviation
+	var sd float64
+	mean := total / float64(num_successes)
+	for j := 0; j < num_t; j++ {
+		if nums[j] > 0 {
+			sd += math.Pow( nums[j] - mean, 2 )
+		}
+	}
+	sd = math.Sqrt(sd / float64(num_successes))
+	fmt.Println("Mean:", mean)
+	fmt.Println("StdDev:", sd)
 	exit <- FinalResult {
 		total_latencies: total,
 		num_successes: num_successes,
