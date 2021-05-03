@@ -37,12 +37,13 @@ type Primaries struct {
 
 func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 
-	parseMessage := func(input chan string, result chan Latencies) {
+	parseMessage := func(input chan string, result chan Latencies, signal chan bool) {
 		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/]*$`).MatchString 
 		for {
 			value := <-input
 			value = strings.Split(strings.TrimSpace(value), common.MESSAGE_DELIMITER)[1]
 			if len(value) > 0 && isValidString(value) {
+				signal <-true
 		
 				temp :=strings.Split(value, "|") [0]
 				components := strings.Split(temp, ",")
@@ -94,14 +95,13 @@ func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 
 	
 	// go handleMessage(input, tunnel, signal)
-	go parseMessage(input, result)
+	go parseMessage(input, result, signal)
 
 	for {
 		p := make([]byte, 55)
 		_, err := c.Read(p)
 		if err == nil {
 			input <- string(p)
-			signal <-true
 		}
 		// temp := (strings.Split(string( p ), "*"))[1]
 		// fmt.Println("Temp:", temp)
