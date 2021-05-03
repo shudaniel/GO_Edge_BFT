@@ -110,7 +110,7 @@ func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 	}
 }
 
-func client_thread(client_id string, zone string, num_t int, percent float64, summation_ch chan Latencies, start_signal <-chan bool) {
+func client_thread(client_id string, zone string, num_t int, percent float64, summation_ch chan Latencies, start_signal <-chan bool, counter_chan chan string) {
 
 	
 
@@ -165,6 +165,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 		// start := time.Now()
 		if randnum < percent {
 			directory["global"].Write([]byte(client_request))
+			counter_chan <- "g"
 			// fmt.Fprintf(directory["global"], client_request)
 
 			// _, err = bufio.NewReader(directory["global"]).Read(p)
@@ -177,6 +178,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 
 		} else {
 			directory["local"].Write([]byte(client_request))
+			counter_chan <- "l"
 			// fmt.Fprintf(directory["local"], client_request)
 
 			// _, err = bufio.NewReader(directory["local"]).Read(p)
@@ -251,6 +253,21 @@ func summation(num_t int, ch chan Latencies, exit chan FinalResult) {
 		num_successes: num_successes,
 		earliest: earliest,
 		latest: latest,
+	}
+}
+
+func counter(in chan string) {
+	num_local := 0
+	num_global := 0
+	for {
+		val := <-in
+		switch val {
+		case "l":
+			num_local += 1
+		case "g":
+			num_global += 1
+		}
+		fmt.Println("Local:", num_local, "Global:", num_global)
 	}
 }
 
@@ -359,9 +376,11 @@ func main() {
 
 	go summation(num_t * num_c, summation_ch, final_result_ch)
 	// ch := make(chan *Latencies)
+	counter_chan := make(chan string, num_t * num_c)
+	go counter(counter_chan)
 
 	for i := 0; i < num_c; i++ {
-    	go client_thread( strconv.Itoa(client_id + i), zone, num_t, percent, summation_ch, start_signals[i])
+    	go client_thread( strconv.Itoa(client_id + i), zone, num_t, percent, summation_ch, start_signals[i], counter_chan)
 		time.Sleep(20 * time.Millisecond)
 	}
 
