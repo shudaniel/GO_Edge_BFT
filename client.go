@@ -43,9 +43,24 @@ func NewLatencyStruct() *Latencies {
 	return &newL
 }
 
-func handleConnection(c net.Conn, results chan float64, signal chan bool) {
+func handleConnection(c net.Conn, result chan float64, signal chan bool) {
 
-	parseMessage := func(input chan string, result chan float64, signal chan bool ) {
+	parseMessage := func(input chan string, result chan float64) {
+		for {
+			value := <-input
+			temp :=strings.Split(value, "|") [0]
+			temp2, err := strconv.ParseFloat(temp, 64)
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				// fmt.Println(temp2)
+				result <- temp2
+			
+			}
+		}
+	}
+
+	handleMessage := func(input chan string, output chan string, signal chan bool ) {
 		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9.|_~]*$`).MatchString 
 		message := ""
 		for {
@@ -54,16 +69,8 @@ func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 				if len(value) > 0 && isValidString(value) {
 					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
 					if value[len(value)-1:] == common.MESSAGE_ENDER {
-						
-						temp :=strings.Split(value, "|") [0]
-						temp2, err := strconv.ParseFloat((message + temp), 64)
-						if err != nil {
-							fmt.Println(err)
-						} else {
-							// fmt.Println(temp2)
-							result <- temp2
-							signal <- true
-						}
+						signal <- true
+						output <- message + value
 						message = ""
 					} else {
 						message = message + value
@@ -77,13 +84,15 @@ func handleConnection(c net.Conn, results chan float64, signal chan bool) {
 		}
 	}
 
-	input := make(chan string, 1000)
+	input := make(chan string, 10000)
+	tunnel := make(chan string, 10000)
 
 	
-	go parseMessage(input, results, signal)
+	go handleMessage(input, tunnel, signal)
+	go parseMessage(tunnel, result)
 
 	for {
-		p := make([]byte, 128)
+		p := make([]byte, 2048)
 		_, err := c.Read(p)
 		if err == nil {
 			input <- string(p)
@@ -287,7 +296,7 @@ func main() {
         return
     }
 
-	summation_ch := make(chan float64)
+	summation_ch := make(chan float64, num_c * num_t)
 	final_result_ch := make(chan FinalResult)
 	start_signals := make(map[int]chan bool)
 
