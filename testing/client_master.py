@@ -15,7 +15,7 @@ clients = [
     # ("127.0.0.1", 7000),
     # ("127.0.0.1", 7100),
     # ("127.0.0.1", 7200),
-    ("54.183.5.97	", 8000),
+    ("54.183.5.97", 8000),
     ("18.191.108.212", 8000),
     ("99.79.42.201", 8000)
 ]
@@ -55,6 +55,7 @@ while True:
     msg_split = msg.split("|")
 
     # start_time = float(msg_split[1])
-
-    
-    print("Total time:", endtime - start_time)
+    print("Value from before:", endtime - start_time)
+    end = int(msg_split[2])/1000000000
+    start = int(msg_split[1])/1000000000
+    print("Total time:", end - start)

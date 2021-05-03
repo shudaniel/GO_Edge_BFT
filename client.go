@@ -12,15 +12,16 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"math/rand"
-	// "regexp"
+	"regexp"
 
 )
 
 var lock_mutex = &sync.Mutex{}
 
 type Latencies struct {
-	client_start time.Time
-	times []float64
+	start string
+	end string
+	time float64
 }
 
 type Address struct {
@@ -34,31 +35,30 @@ type Primaries struct {
   Description string
 }
 
-func NewLatencyStruct() *Latencies {
-	newL := Latencies{
-		client_start: time.Now(),
-		times: []float64{},
-	}
+func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 
-	return &newL
-}
-
-func handleConnection(c net.Conn, result chan float64, signal chan bool) {
-
-	parseMessage := func(input chan string, result chan float64) {
+	parseMessage := func(input chan string, result chan Latencies) {
+		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/]*$`).MatchString 
 		for {
 			value := <-input
 			value = strings.Split(strings.TrimSpace(value), common.MESSAGE_DELIMITER)[1]
-			// fmt.Println("parse received:", value)
-			temp :=strings.Split(value, "|") [0]
-			temp2, err := strconv.ParseFloat(temp, 64)
-			if err != nil {
-				fmt.Println(err)
-			} else {
-				// fmt.Println(temp2)
-				result <- temp2
-			
-			}
+			if len(value) > 0 && isValidString(value) {
+		
+				temp :=strings.Split(value, "|") [0]
+				components := strings.Split(temp, ",")
+				temp2, err := strconv.ParseFloat(components[0], 64)
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					// fmt.Println(temp2)
+					result <- Latencies {
+						time: temp2,
+						start: components[1],
+						end: components[2],
+					}
+				
+				}
+			}  
 		}
 	}
 
@@ -97,7 +97,7 @@ func handleConnection(c net.Conn, result chan float64, signal chan bool) {
 	go parseMessage(input, result)
 
 	for {
-		p := make([]byte, 20)
+		p := make([]byte, 55)
 		_, err := c.Read(p)
 		if err == nil {
 			input <- string(p)
@@ -110,7 +110,7 @@ func handleConnection(c net.Conn, result chan float64, signal chan bool) {
 	}
 }
 
-func client_thread(client_id string, zone string, num_t int, percent float64, summation_ch chan float64, start_signal <-chan bool) {
+func client_thread(client_id string, zone string, num_t int, percent float64, summation_ch chan Latencies, start_signal <-chan bool) {
 
 	
 
@@ -219,23 +219,38 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 type FinalResult struct {
 	total_latencies  float64
 	num_successes  int
+	earliest int
+	latest int
 }
 
-func summation(num_t int, ch chan float64, exit chan FinalResult) {
+func summation(num_t int, ch chan Latencies, exit chan FinalResult) {
 	total := 0.0
 	num_successes := 0
-	var newval float64
+	earliest := 0
+	latest := 0
+	var newval Latencies
 	for i := 0; i < num_t; i++ {	
 		newval = <- ch
-		total += newval
+		
 		// fmt.Println(i)
-		if newval > 0 {
+		if newval.time > 0 {
+			total += newval.time
 			num_successes++
+			val, _ := strconv.Atoi(newval.start)
+			if earliest == 0 || val < earliest {
+				earliest = val
+			}
+			val, _ = strconv.Atoi(newval.end)
+			if val > latest {
+				latest = val
+			}
 		}
 	}
 	exit <- FinalResult {
 		total_latencies: total,
 		num_successes: num_successes,
+		earliest: earliest,
+		latest: latest,
 	}
 }
 
@@ -302,7 +317,7 @@ func main() {
         return
     }
 
-	summation_ch := make(chan float64, num_c * num_t)
+	summation_ch := make(chan Latencies, num_c * num_t)
 	final_result_ch := make(chan FinalResult)
 	start_signals := make(map[int]chan bool)
 
@@ -366,7 +381,7 @@ func main() {
 
 	final_sum := <-final_result_ch
 
-	message := "Total latency:" + strconv.FormatFloat(final_sum.total_latencies, 'f', 6, 64) + "|" + strconv.Itoa(final_sum.num_successes) + "*"
+	message := "Total latency:" + strconv.FormatFloat(final_sum.total_latencies, 'f', 6, 64) + "|" + strconv.Itoa(final_sum.earliest) + "|" + strconv.Itoa(final_sum.latest) + "|" + strconv.Itoa(final_sum.num_successes) + "*"
 	_,err = ser.WriteToUDP([]byte(message), remoteaddr)
     if err != nil {
         fmt.Printf("Couldn't send response %v", err)
