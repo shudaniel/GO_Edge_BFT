@@ -62,8 +62,8 @@ func handleConnection(c net.Conn, result chan float64, signal chan bool) {
 	}
 
 	handleMessage := func(input chan string, output chan string, signal chan bool ) {
-		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9.|_~]*$`).MatchString 
-		message := ""
+		// var isValidString = regexp.MustCompile(`^[a-zA-Z0-9.|_~]*$`).MatchString 
+		// message := ""
 		for {
 			received_data := <- input
 			signal <- true
