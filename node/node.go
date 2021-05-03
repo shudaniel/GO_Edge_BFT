@@ -249,7 +249,7 @@ func (n *node) handleJoin(message_components []string, outbox chan string, reply
 // 	}
 }
 
-func (n *node) handleClientJoin(startingid int, zone string, num_c int, num_t int) {
+func (n *node) handleClientJoin(startingid int, zone string, num_c int) {
 
 	for i := 0; i < num_c; i++ {
 		clientid := strconv.Itoa(startingid + i)
@@ -262,7 +262,7 @@ func (n *node) handleClientJoin(startingid int, zone string, num_c int, num_t in
 		n.paxos_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
 		n.endorse_signals[clientid] = make(chan string, common.MAX_CHANNEL_SIZE)
 		fmt.Printf("Client locks created: %s\n", zone)
-		n.pbft_state.Initialize(clientid, num_t)
+		n.pbft_state.Initialize(clientid)
 		n.endorse_state.Initialize(clientid)
 		n.paxos_state.Initialize(clientid)
 		lock_mutex.Unlock()
@@ -373,8 +373,7 @@ func (n *node) handleUDPMessage(message string, addr *net.UDPAddr) {
 		clientid, _ :=  strconv.Atoi(components[1])
 		zone := components[2]
 		num_c, _ := strconv.Atoi(components[3])
-		num_t, _ := strconv.Atoi(components[4])
-		n.handleClientJoin(clientid, zone, num_c, num_t)
+		n.handleClientJoin(clientid, zone, num_c)
 	// case "CLIENT_REQUEST":
 	// 	request_msg := components[1]
 	// 	n.handleClientRequest(request_msg, addr)
