@@ -179,7 +179,7 @@ func (state *EndorsementState) HandleMessage(
 		i := state.counter_promise[clientid].Count 
 		state.locks[promise_key].Lock()
 		if seq_num < state.counter_promise[clientid].Seq  {
-			state.locks[prepare_key].Unlock()
+			state.locks[promise_key].Unlock()
 			return
 		} else if seq_num == state.counter_promise[clientid].Seq {
 			state.counter_promise[clientid].Count += 1
