@@ -267,7 +267,7 @@ func counter(in chan string) {
 		case "g":
 			num_global += 1
 		}
-		// fmt.Println("Local:", num_local, "Global:", num_global)
+		fmt.Println("Local:", num_local, "Global:", num_global)
 	}
 }
 
