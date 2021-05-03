@@ -277,7 +277,6 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 	txn_type := "l"
 
 	total_time := 0.0
-	end := time.Now()
 	start := time.Now()
 	if n.client_list[client_id] {
 		// fmt.Println("%s is in client list", client_id)
@@ -301,7 +300,7 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 	}
 	select {
     case <-ch:
-		end = time.Now()
+		end := time.Now()
 		difference := end.Sub(start)
 		total_time = difference.Seconds() 
 		if common.VERBOSE && common.VERBOSE_EXTRA {
@@ -314,7 +313,7 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
     }
 	
 	// n.sendUDPResponse(fmt.Sprintf("%f", total_time), addr)
-	n.sendTCPResponse(fmt.Sprintf("%f,%d,%d", total_time, start.UnixNano(), end.UnixNano()), outbox)
+	n.sendTCPResponse(fmt.Sprintf("%f", total_time), outbox)
 	// fmt.Println("Total time: %d", total_time)
 
 }
@@ -375,7 +374,9 @@ func (n *node) handleUDPMessage(message string, addr *net.UDPAddr) {
 		zone := components[2]
 		num_c, _ := strconv.Atoi(components[3])
 		n.handleClientJoin(clientid, zone, num_c)
-
+	// case "CLIENT_REQUEST":
+	// 	request_msg := components[1]
+	// 	n.handleClientRequest(request_msg, addr)
 	case "RESET":
 		n.reset()
 	}
