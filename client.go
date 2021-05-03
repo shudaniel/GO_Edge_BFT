@@ -90,7 +90,10 @@ func handleConnection(c net.Conn, results chan Latencies, signal chan bool) {
 	tunnel := make(chan string, 10000)
 	
 	go handleMessage(input, tunnel, signal)
-	go parseMessage(tunnel, results)
+
+	for i:= 0; i < 10; i++{
+		go parseMessage(tunnel, results)
+	}
 
 	for {
 		p := make([]byte, 128)
@@ -313,8 +316,8 @@ func main() {
         return
     }
 
-	summation_ch := make(chan Latencies)
-	final_result_ch := make(chan FinalResult)
+	summation_ch := make(chan Latencies, num_c * num_t)
+	final_result_ch := make(chan FinalResult, num_c * num_t)
 	start_signals := make(map[int]chan bool)
 
 	for k := 0; k < num_c; k++ {
