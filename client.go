@@ -48,6 +48,7 @@ func handleConnection(c net.Conn, result chan float64, signal chan bool) {
 	parseMessage := func(input chan string, result chan float64) {
 		for {
 			value := <-input
+			// fmt.Println("parse received:", value)
 			temp :=strings.Split(value, "|") [0]
 			temp2, err := strconv.ParseFloat(temp, 64)
 			if err != nil {
@@ -65,34 +66,38 @@ func handleConnection(c net.Conn, result chan float64, signal chan bool) {
 		message := ""
 		for {
 			received_data := <- input
-			for _, value := range strings.Split(strings.TrimSpace(received_data), common.MESSAGE_DELIMITER) {
-				if len(value) > 0 && isValidString(value) {
-					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
-					if value[len(value)-1:] == common.MESSAGE_ENDER {
-						signal <- true
-						output <- message + value
-						message = ""
-					} else {
-						message = message + value
-					}
+			signal <- true
+			output <- strings.Split(strings.TrimSpace(received_data), common.MESSAGE_DELIMITER)[1]
+			// fmt.Println("RAW RECEIVED:", received_data)
+			// for _, value := range strings.Split(strings.TrimSpace(received_data), common.MESSAGE_DELIMITER) {
+			// 	fmt.Println("parse received:", value)
+			// 	if len(value) > 0 && isValidString(value) {
+			// 		// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
+			// 		if value[len(value)-1:] == common.MESSAGE_ENDER {
+						
+			// 			output <- message + value
+			// 			message = ""
+			// 		} else {
+			// 			message = message + value
+			// 		}
 					
-				}
-			}
+			// 	}
+			// }
 			
 			
 
 		}
 	}
 
-	input := make(chan string, 10000)
-	tunnel := make(chan string, 10000)
+	input := make(chan string, 1000)
+	tunnel := make(chan string, 1000)
 
 	
 	go handleMessage(input, tunnel, signal)
 	go parseMessage(tunnel, result)
 
 	for {
-		p := make([]byte, 2048)
+		p := make([]byte, 20)
 		_, err := c.Read(p)
 		if err == nil {
 			input <- string(p)
