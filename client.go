@@ -37,7 +37,32 @@ type Primaries struct {
 
 func handleConnection(c net.Conn, results chan Latencies, signal chan bool) {
 
-	parseMessage := func(input chan string, result chan Latencies, signal chan bool ) {
+	parseMessage := func(input chan string, result chan Latencies) {
+		for {
+			value := <-input
+			temp :=strings.Split(value, "|") [0]
+			complete_message := strings.Split(temp, ",")
+			duration, err1 := strconv.ParseFloat(complete_message[0], 64)
+			start, err2 := strconv.Atoi(complete_message[1])
+			end, err3 := strconv.Atoi(complete_message[2])
+			if err1 != nil || err2 != nil || err3 != nil {
+				fmt.Println(err1)
+				fmt.Println(err2)
+				fmt.Println(err3)
+			} else {
+				// fmt.Println(temp2)
+				result <- Latencies {
+					client_start: start,
+					client_end: end,
+					duration: duration,
+				}
+			}
+
+		}
+		
+	}
+
+	handleMessage := func(input chan string, output chan string, signal chan bool) {
 		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9.,|_~]*$`).MatchString 
 		message := ""
 		for {
@@ -46,25 +71,8 @@ func handleConnection(c net.Conn, results chan Latencies, signal chan bool) {
 				if len(value) > 0 && isValidString(value) {
 					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
 					if value[len(value)-1:] == common.MESSAGE_ENDER {
-						
-						temp :=strings.Split(value, "|") [0]
-						complete_message := strings.Split(message + temp, ",")
-						duration, err1 := strconv.ParseFloat(complete_message[0], 64)
-						start, err2 := strconv.Atoi(complete_message[1])
-						end, err3 := strconv.Atoi(complete_message[2])
-						if err1 != nil || err2 != nil || err3 != nil {
-							fmt.Println(err1)
-							fmt.Println(err2)
-							fmt.Println(err3)
-						} else {
-							// fmt.Println(temp2)
-							result <- Latencies {
-								client_start: start,
-								client_end: end,
-								duration: duration,
-							}
-							signal <- true
-						}
+						signal <-true
+						output <- (message + value)
 						message = ""
 					} else {
 						message = message + value
@@ -79,9 +87,10 @@ func handleConnection(c net.Conn, results chan Latencies, signal chan bool) {
 	}
 
 	input := make(chan string, 10000)
-
+	tunnel := make(chan string, 10000)
 	
-	go parseMessage(input, results, signal)
+	go handleMessage(input, tunnel, signal)
+	go parseMessage(tunnel, results)
 
 	for {
 		p := make([]byte, 128)
