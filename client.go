@@ -273,7 +273,7 @@ func summation(num_t int, ch chan Latencies, exit chan FinalResult) {
 
 func main() {
 
-	all_start = false
+	all_start = true
 	rand.Seed(10)
 	num_c := 10
 	num_t := 10
@@ -390,7 +390,7 @@ func main() {
 	for h := 0; h < num_c; h++ {
 		start_signals[h] <-true
 	}
-	all_start = true
+	all_start = false
 	
 	// min_time := time.Now()
 	// for j := 0; j < num_c; j++ {
