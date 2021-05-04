@@ -1,67 +1,77 @@
-# This file signals all the client threads in the different zones to start and also to collect all the total times
-import socket
-import time
-import os
-import json
 import argparse
+import subprocess
+import socket
+import shlex
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--address", "-a", default="127.0.0.1")
 parser.add_argument("--port", "-p",  type=int, default=8000)
+parser.add_argument("--id", "-i",  type=int, default=0)
+parser.add_argument("--zone", "-z", default="0")
+parser.add_argument("--numclients", "-c", type=int, default=1)
+parser.add_argument("--numtransactions", "-t", default="10")
+parser.add_argument("--percent", "-r", type=float, default=0.1)
+
 args = parser.parse_args()
-
-
-clients = [
-    # ("127.0.0.1", 7000),
-    # ("127.0.0.1", 7100),
-    # ("127.0.0.1", 7200),
-    ("18.144.66.7", 8000),
-    ("18.216.192.87", 8000),
-    ("3.97.11.245", 8000)
-]
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((args.address, args.port))
 
+client_join = "*CLIENT_JOIN|" + str(args.id) + "|" +args.zone + "|" + str(args.numclients) + "|~*" 
+with open("../addresses.txt", "r") as readfile:
+    Lines = readfile.readlines()
+    for line in Lines:
 
-start = input("Push any key to start")
-# First, send a reset signal to everyone
-# reset_msg = "RESET".encode('utf-8')
-# if os.path.exists("sample.json"):
-#     with open("sample.json", "r") as readfile:
-#         addresses = json.loads(readfile.read())
-#         for addr in addresses:
-#             sock.sendto(reset_msg, (addr[0], addr[1]))
+        ip_addr, port = line.split(" ")
+        print(ip_addr, port)
+        sock.sendto(client_join.encode('utf-8'), (ip_addr, int(port)))
+
+procs = []
+# Spawn processes
+for i in range(args.numclients):
+    clientid = str(args.id + i)
+    command = "python3 client.py -z " + args.zone + " -i " + clientid + " -t " + str(args.numtransactions) + " -r " + str(args.percent)
+    cmd_split = shlex.split(command)
+    proc = subprocess.Popen(cmd_split, stdout=subprocess.PIPE, stdin= subprocess.PIPE)
+    procs.append(proc)
+
+# Signal to send all the client_join messages
+data, addr = sock.recvfrom(1024)
+# Signal all the processes to start
+for i in range(len(procs)):
+    procs[i].stdin.write(b'start\n')
+    procs[i].stdin.flush()
+
+# Collect all of the return values
+returns = []
+for i in range(len(procs)):
+    val, errs = procs[i].communicate()
+    returns.append(val.decode("utf-8") )
 
 
+times_sum = 0
+starttime = 0
+endtime = 0
+total = 0    
 
-for i in range(len(clients)):
-    startmsg = "start".encode('utf-8')
-    print(clients[i])
-    sock.sendto(startmsg, clients[i])
+# Process them
+for i in range(len(returns)):
+    components = returns[i].split("|")
+    latency = float(components[0])
+    earliest = int(components[1])
+    latest = int(components[2])
+    total += int(components[3])
 
-start = input("Push any key to start again")
-start_time = time.time()
-for i in range(len(clients)):
-    startmsg = "start".encode('utf-8')
-    print(clients[i])
-    sock.sendto(startmsg, clients[i])
+    if starttime == 0 or earliest < starttime:
+        starttime = earliest
+    if latest > endtime:
+        endtime = latest
 
-earliest = 0
-latest = 0
-while True:
-    data, addr = sock.recvfrom(1024)
-    endtime = time.time()
-    msg = data.decode()
-    print("Received times:", msg)
-    msg_split = msg.split("|")
+    times_sum += latency
 
-    # start_time = float(msg_split[1])
-    print("Value from before:", endtime - start_time)
-    end = int(msg_split[2])/1000000000
-    start = int(msg_split[1])/1000000000
-    if end > latest:
-        latest = end
-    if earliest == 0 or start < earliest:
-        earliest = start
-    print("Total time:", latest - earliest)
+# Send back the result
+final_msg = str(times_sum) + "|" + str(starttime) + "|" + str(endtime) + "|" + str(total) + "|*"
+print(final_msg)
+sock.sendto(final_msg.encode('utf-8'), addr)
+
+
