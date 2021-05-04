@@ -148,10 +148,6 @@ func (state *EndorsementState) HandleMessage(
 			sendMessage(s, original_senderid, zone)
 			achieve_prepare_quorum = true
 
-			// state.locks[promise_key].Lock()
-			// interf, _ = state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
-			// state.counter_promise.Store(msg_value + "E_PROMISE", interf.(int) + 1)
-			// state.locks[promise_key].Unlock()
 			if common.VERBOSE && common.VERBOSE_EXTRA {
 				fmt.Printf("Quorum endorsement achieved, message signed %s\n", message)
 			}

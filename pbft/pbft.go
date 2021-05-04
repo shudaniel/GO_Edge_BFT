@@ -42,25 +42,6 @@ func (state *PbftState) GetF() int {
 	return state.failures
 }
 
-// func (state *PbftState) IncrementPrepareCount(clientid string) count {
-// 	count := -30
-// 	if val, ok := state.counter_prepare[clientid]; ok {
-		
-
-// 	} 
-
-// 	return count
-// }
-
-// func (state *PbftState) IncrementCommitCount(clientid string) count {
-// 	count := -30
-// 	if val, ok := state.counter_commit[clientid]; ok {
-// 		//do something here
-		
-// 	} 
-
-// 	return count
-// }
 
 func (state *PbftState) Initialize(clientid string ) {
 	newPrepareCounter := common.Counter {
@@ -154,11 +135,6 @@ func (state *PbftState) HandleMessage(
 				fmt.Printf("pbft prepare Quorum achieved for %s\n", message)
 			}
 			achieve_pbft_prepare_quorum = true
-
-			// state.locks[commit_key].Lock()
-			// interf, _ = state.counter_commit.LoadOrStore(message_val + "COMMIT", 0)
-			// state.counter_commit.Store(message_val + "COMMIT", interf.(int) + 1)
-			// state.locks[commit_key].Unlock()
 			
 		} else {
 			// state.counter_prepare.Store(message_val + "PREPARE", count + increment_amount)

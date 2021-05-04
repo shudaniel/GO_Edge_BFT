@@ -65,16 +65,6 @@ func NewNode(ip string, port int, z string, f int) *node {
 
 	randbits := rand.Intn(100)
 
-	// addr := net.UDPAddr{
-    //     Port: port,
-    //     IP: net.ParseIP(ip),
-    // }
-    // ser, err := reuseport.ListenPacket("udp", addr.String())
-    // if err != nil {
-    //     fmt.Printf("Some error %v\n", err)
-    //     return nil
-    // }
-
 	priv_key, pub_key := common.GenerateKeyPair(randbits)
 
 
@@ -87,10 +77,8 @@ func NewNode(ip string, port int, z string, f int) *node {
 		paxos_state:          paxos.NewPaxosState(),
 		zone:				 z,
 		id: 				 ip + ":" + strconv.Itoa(port),
-		// inboxTCP:        make(chan IncomingTCPMessage, common.MAX_CHANNEL_SIZE),
 		outboxUDP:               make(chan OutgoingUDPMessage, common.MAX_CHANNEL_SIZE),
 		outboxesTCP:      make(map[string]chan string),
-		// sock:                ser,
 		inboxUDP:           make(chan IncomingUDPMessage, common.MAX_CHANNEL_SIZE),
 		private_key:          priv_key,
 		public_keys:         make(map[string]*rsa.PublicKey),
@@ -161,18 +149,7 @@ func (n *node) joinNetwork() {
         }
 		outbox := make(chan string, common.MAX_CHANNEL_SIZE)
 		go n.handleConnection(c, outbox)
-		// port, err := strconv.Atoi(line_components[1])
-		// if err != nil {
-		// 	file.Close()
-		// 	fmt.Println("Error with port")
-		// 	fmt.Println(err)
-		// 	return
-		// }
-		// addr := net.UDPAddr{
-		// 	Port: port,
-		// 	IP: net.ParseIP(line_components[0]),
-		// }
-		
+
 	}
 	file.Close()
 }
@@ -188,24 +165,6 @@ func (n *node) udpHandlerRoutine() {
 	}
 }
 
-// func (n *node) tcpHandlerRoutine() {
-// 	var received_data IncomingTCPMessage
-// 	for {
-// 		received_data = <- n.inboxTCP
-
-// 		for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), "*") {
-// 			if len(value) > 0 {
-// 				// Check that the end of the message is what you expect, otherwise you need to wait for the rest of it
-// 				go n.handleTCPMessage(value, received_data.outbox)
-// 			}
-// 			// if value[0] < unicode.MaxASCII {
-// 			// }
-// 		}
-		
-		
-
-// 	}
-// }
 
 func (n *node) broadcastToZone(msg string) {
 	// fmt.Println("Broadcast to zone:", msg)
@@ -243,10 +202,6 @@ func (n *node) handleJoin(message_components []string, outbox chan string, reply
 	n.directory[zone][nodeid] = outbox
 	lock_mutex.Unlock()
 	
-// 	if reply {
-// 		reply_msg := n.createJoinMessage(false)
-// 		n.sendTCPResponse(reply_msg, nodeid)
-// 	}
 }
 
 func (n *node) handleClientJoin(startingid int, zone string, num_c int) {
@@ -297,7 +252,6 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 
 		} (message, n.id, n.zone, client_id, n.paxos_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state, ch)
 		// fmt.Println("%s not is in client list", client_id)
-		// success = n.paxos_state.Run(message, n.id, n.zone, client_id, n.paxos_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state)
 	}
 	select {
     case <-ch:
@@ -375,9 +329,7 @@ func (n *node) handleUDPMessage(message string, addr *net.UDPAddr) {
 		zone := components[2]
 		num_c, _ := strconv.Atoi(components[3])
 		n.handleClientJoin(clientid, zone, num_c)
-	// case "CLIENT_REQUEST":
-	// 	request_msg := components[1]
-	// 	n.handleClientRequest(request_msg, addr)
+
 	case "RESET":
 		n.reset()
 	}
@@ -391,8 +343,6 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 	join_msg := common.MESSAGE_DELIMITER + n.createJoinMessage(false) + "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
 	c.Write([]byte(join_msg))
 
-	// msg_bytes := append([]byte(join_msg), "\n"...)
-	// c.Write(msg_bytes)
 
 	sendFromOutbox := func(c net.Conn, outbox chan string) {
 		var message string
@@ -400,19 +350,6 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 		for {
 			message = <- outbox
 			c.Write([]byte(message))
-			
-			// msg_bytes = append([]byte(message), "\n"...)
-
-			// err := c.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
-			// if err != nil {
-			// 	outbox <- message
-			// 	continue
-			// }
-			// // if CheckConnError(err, c) { return }
-			// _, err = c.Write(msg_bytes)
-			// // if CheckConnError(err, c) { return }
-			// // len, _ := c.Write([]byte(message))
-			// // fmt.Println("Wrote", len, "bytes")
 		}
 	}
 
@@ -468,43 +405,6 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 					outbox: outbox,
 				}
 			}
-
-			// message, err := bufio.NewReader(c).ReadString('\n')
-			// if err != nil {
-			// 	if err.Error() == "EOF" {
-			// 		fmt.Println("EOF detected")
-			// 		break
-			// 	}
-					
-			// } else {
-			// 	n.inboxTCP<- IncomingTCPMessage{
-			// 		Msg: message,
-			// 		outbox: outbox,
-			// 	}
-			// }
-
-
-			// buff := make([]byte, 1024)
-			// // read a single byte which contains the message length
-			// size, err := conn.ReadByte()
-			// if err != nil {
-			// 	fmt.Println("error reading byte:", err)
-			// 	continue
-			// }
-
-			// // read the full message, or return an error
-			// _, err := io.ReadFull(conn, buff[:int(size)])
-			// if err != nil {
-			// 	fmt.Println("error reading full", err)
-			// 	continue
-			// }
-			// n.inboxTCP<- IncomingTCPMessage{
-			// 	Msg: buff,
-			// 	outbox: outbox,
-			// }
-
-		
-			// fmt.Print("-> ", string(netData))
 	}
 	c.Close()
 }
@@ -584,10 +484,6 @@ func (n *node) sendUDPResponse(message string, addr *net.UDPAddr) {
 		recipient: addr,
 		data: []byte(message + common.MESSAGE_DELIMITER),
 	}
-	// _,err := n.sock.WriteToUDP([]byte(message + "*"), addr)
-	// if err != nil {
-	// 	fmt.Printf("Couldn't send response %v", err)
-	// }
 	
 }
 
@@ -598,7 +494,6 @@ func (n *node) Run() {
 		go n.udpHandlerRoutine()
 
 		go n.listenTCP()
-		// go n.tcpHandlerRoutine()
 	}
 
 	n.joinNetwork()

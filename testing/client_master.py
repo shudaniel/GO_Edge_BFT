@@ -46,7 +46,7 @@ for i in range(len(procs)):
 returns = []
 for i in range(len(procs)):
     val, errs = procs[i].communicate()
-    returns.append(val.decode("utf-8") )
+    returns.append(val.decode("utf-8"))
 
 
 times_sum = 0
