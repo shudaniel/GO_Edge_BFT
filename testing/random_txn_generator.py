@@ -9,11 +9,14 @@ def generate_txns(num_t, num_c, percent, num_zones):
 
     txndata_for_server = []
     txndata_for_client = {}
+    client_throughput = {}
     for i in range(num_zones):
         
         txndata_for_client[str(i)] = {}
         for j in range(num_c):
             client_id = str((i * num_c) + j)
+
+            client_throughput[client_id] = { "received_txns": 0, "total_latency": 0 }
             new_txn_list = ""
             if i == 0:
                 # NOTE: zone 0 will only get local transactions
@@ -50,4 +53,4 @@ def generate_txns(num_t, num_c, percent, num_zones):
             txndata_for_client[str(i)][client_id] = new_txn_list
     
 
-    return json.dumps(txndata_for_server), txndata_for_client
+    return json.dumps(txndata_for_server), txndata_for_client, client_throughput

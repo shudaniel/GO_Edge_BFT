@@ -12,7 +12,7 @@ args = parser.parse_args()
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((args.address, args.port))
 
-data, addr = sock.recvfrom(1024)
+data, addr = sock.recvfrom(10000)
 params = data.decode().split("|")
 
 zone = params[0]

@@ -161,12 +161,36 @@ func (n *node) joinNetwork() {
 }
 
 func (n *node) udpHandlerRoutine() {
+	// var received_data IncomingUDPMessage
+	// for {
+	// 	received_data = <- n.inboxUDP
+	// 	for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), common.MESSAGE_DELIMITER) {
+	// 		go n.handleUDPMessage(value, received_data.Address)
+	// 	}
+
+	// }
+
 	var received_data IncomingUDPMessage
+	message := ""
 	for {
 		received_data = <- n.inboxUDP
 		for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), common.MESSAGE_DELIMITER) {
-			go n.handleUDPMessage(value, received_data.Address)
+			if common.VERBOSE && common.VERBOSE_EXTRA {
+				fmt.Println("Raw Received UDP:", value)
+			}
+			if len(value) > 0 && isValidString(value) {
+				// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
+				if value[len(value)-1:] == common.MESSAGE_ENDER {
+					go n.handleUDPMessage(message + value, received_data.Address)
+					message = ""
+				} else {
+					message = message + value
+				}
+				
+			}
 		}
+		
+		
 
 	}
 }
@@ -218,6 +242,8 @@ func (n *node) handleClientJoin(startingid int, zone string, num_c int) {
 		if n.zone == zone {
 			fmt.Printf("Client joining: %s\n", clientid)
 			n.client_list[clientid] = true
+		} else {
+			n.client_list[clientid] = false
 		}
 		n.pbft_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
 		n.paxos_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
@@ -518,7 +544,7 @@ func (n *node) listenUDP() {
     }
 
 	for {
-		p := make([]byte, 1024)
+		p := make([]byte, 8196)
         len,remoteaddr,err := ser.(*net.UDPConn).ReadFromUDP(p)
 		if common.VERBOSE_EXTRA {
 			fmt.Printf("Read UDP message (%d) %s \n", len, p)

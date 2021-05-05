@@ -33,7 +33,7 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((args.address, args.port))
 
 
-txns_list_for_server, txns_dict_for_client = generate_txns(num_t = args.numtransactions, num_c = args.numclients, percent = args.percent, num_zones = len(clients.keys()))
+txns_list_for_server, txns_dict_for_client, client_throughput = generate_txns(num_t = args.numtransactions, num_c = args.numclients, percent = args.percent, num_zones = len(clients.keys()))
 with open("primaries.json", "r") as readfile:
     primary_info = json.loads(readfile.read())
     for i in range(len(primary_info)):
@@ -69,19 +69,42 @@ for zone in clients:
 
 earliest = 0
 latest = 0
-while True:
-    data, addr = sock.recvfrom(1024)
-    # endtime = time.time()
-    msg = data.decode()
-    print("Received times:", msg)
-    # msg_split = msg.split("|")
+total_txn = 0
+total_latency = 0
 
-    # # start_time = float(msg_split[1])
-    # # print("Value from before:", endtime - start_time)
-    # end = int(msg_split[2])/1000000000
-    # start = int(msg_split[1])/1000000000
-    # if end > latest:
-    #     latest = end
-    # if earliest == 0 or start < earliest:
-    #     earliest = start
-    # print("Total time:", latest - earliest)
+old_latency_total = 0
+
+while True:
+    data, addr = sock.recvfrom(8196)
+    # endtime = time.time()
+    msg = data.decode()[:-1]
+    # print("Received times:", msg)
+    msg_split = msg.split("|")
+
+    if len(msg_split) == 1:
+        json_data = json.loads(msg)
+        for clientid in json_data:
+            total_latency += json_data[clientid]["totallatency"]
+            total_txn += json_data[clientid]["numtxn"]
+            client_throughput[clientid]["total_latency"] += json_data[clientid]["totallatency"]
+            client_throughput[clientid]["received_txns"] += json_data[clientid]["numtxn"]
+        
+        print("Total Latency:", total_latency, "|Total txn:", total_txn)
+        total_throughput = 0
+        for clientid in client_throughput:
+            if client_throughput[clientid]["received_txns"] > 0:
+                total_throughput += client_throughput[clientid]["received_txns"] / client_throughput[clientid]["total_latency"]
+        print("Total Throughput:", total_throughput)
+
+    else:
+        old_latency_total += float(msg_split[0])
+        print("Total Latency (old):", old_latency_total)
+        # # start_time = float(msg_split[1])
+        # # print("Value from before:", endtime - start_time)
+        # end = int(msg_split[2])/1000000000
+        # start = int(msg_split[1])/1000000000
+        # if end > latest:
+        #     latest = end
+        # if earliest == 0 or start < earliest:
+        #     earliest = start
+        # print("Total time:", latest - earliest)
