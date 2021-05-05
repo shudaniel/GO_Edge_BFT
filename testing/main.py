@@ -6,6 +6,7 @@ import json
 import argparse
 from random_txn_generator import generate_txns
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--address", "-a", default="127.0.0.1")
 parser.add_argument("--port", "-p",  type=int, default=8000)
@@ -40,8 +41,18 @@ with open("primaries.json", "r") as readfile:
         # Connect with the primaries via tcp
         target_addr = (primary_info[i]["ip"], int(primary_info[i]["port"]))
         msg = "*TXN_DATA|" + txns_list_for_server + "|~*"
-        print("sending", msg, "to", target_addr)
-        sock.sendto( msg.encode('utf-8')  , target_addr)
+        encoded_msg = msg.encode('utf-8')
+        print("sending TXN_DATA to", target_addr, "of len", len(encoded_msg))
+        # Send in 1024 byte chunks
+        start = 0
+        while start + 1024 <= len(encoded_msg):
+            sock.sendto( encoded_msg[start:(start + 1024)] , target_addr)
+            start += 1024
+            time.sleep(0.2)
+        
+        # One more fragment to send
+        if start < len(encoded_msg):
+            sock.sendto( encoded_msg[start:] , target_addr)
 
 
 start = input("Push any key to start")
@@ -57,7 +68,7 @@ start = input("Push any key to start")
 
 for zone in clients:
     # Signal all the client_masters to start
-    msg = zone + "|" + str(args.numclients) + "|" + str(args.numtransactions) + "|" + str(args.percent) + "|" + json.dumps(txns_dict_for_client[zone])
+    msg = zone + "|" + str(args.numclients) + "|" + str(args.numtransactions) + "|" + str(args.percent) + "|" + json.dumps(txns_dict_for_client[zone]) + "|"
     startmsg = msg.encode('utf-8')
     sock.sendto(startmsg, clients[zone])
 

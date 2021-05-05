@@ -21,16 +21,13 @@ numtransactions = int(params[2])
 percent = float(params[3])
 txn_data = json.loads(params[4])
 
-print("TXNs", txn_data)
 id = int(zone) * numclients
 
 client_join = "*CLIENT_JOIN|" + str(id) + "|" +zone + "|" + str(numclients) + "|~*" 
 with open("../addresses.txt", "r") as readfile:
     Lines = readfile.readlines()
     for line in Lines:
-
         ip_addr, port = line.split(" ")
-        print(ip_addr, port)
         sock.sendto(client_join.encode('utf-8'), (ip_addr, int(port)))
 
 procs = []

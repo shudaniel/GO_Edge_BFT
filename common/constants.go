@@ -8,7 +8,7 @@ const (
 	MESSAGE_ENDER = "~"
 	MESSAGE_DELIMITER = "*"
 	VERBOSE = false   // Only print received messages, sent messages, and timeouts
-	VERBOSE_EXTRA = false // Print additional information. VERBOSE must also be true
+	VERBOSE_EXTRA = false // Print additional information. VERBOSE must also be true or this does nothing
 
 )
 

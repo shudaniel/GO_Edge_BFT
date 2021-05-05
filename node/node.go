@@ -23,7 +23,7 @@ import (
 )
 
 var lock_mutex = &sync.Mutex{}
-var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/]*$`).MatchString 
+var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*$`).MatchString 
 
 type IncomingTCPMessage struct {
 	Msg []byte
@@ -175,9 +175,7 @@ func (n *node) udpHandlerRoutine() {
 	for {
 		received_data = <- n.inboxUDP
 		for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), common.MESSAGE_DELIMITER) {
-			if common.VERBOSE && common.VERBOSE_EXTRA {
-				fmt.Println("Raw Received UDP:", value)
-			}
+			
 			if len(value) > 0 && isValidString(value) {
 				// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
 				if value[len(value)-1:] == common.MESSAGE_ENDER {
@@ -185,6 +183,7 @@ func (n *node) udpHandlerRoutine() {
 					message = ""
 				} else {
 					message = message + value
+					// fmt.Println("Message so far ************************************************************************\n", message)
 				}
 				
 			}
@@ -352,7 +351,7 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 	case "CLIENT_REQUEST":
 		request_msg := components[1]
 		n.handleClientRequest(request_msg, outbox)
-
+		
 	}
 }
 
@@ -383,7 +382,9 @@ func (n *node)  RunClientTracker(zone string, txn_json string, addr *net.UDPAddr
 		Numtxn int
 	}
 
-	fmt.Println("Received txn_json", txn_json)
+	if common.VERBOSE && common.VERBOSE_EXTRA { 
+		fmt.Println("Received txn_json", txn_json)
+	}
 	var clientTxnInfo []ClientJsondata
 	byt := []byte(txn_json)
 	tracker := tracker.NewClientsTracker()
@@ -392,7 +393,7 @@ func (n *node)  RunClientTracker(zone string, txn_json string, addr *net.UDPAddr
 		return
     }
 
-	fmt.Println("clienttTxnInfo:", clientTxnInfo)
+	// fmt.Println("clienttTxnInfo:", clientTxnInfo)
 	// Count the total number of transactions you expect
 	num_total_transactions := 0
 	for i := 0; i < len(clientTxnInfo); i++ {
@@ -411,6 +412,7 @@ func (n *node)  RunClientTracker(zone string, txn_json string, addr *net.UDPAddr
 	}
 	
 
+	fmt.Println("Done with txns, going to send back resposne now")
 	// Send the response back 
 	responsedata := tracker.GenerateReturnData()
 	n.sendUDPResponse(responsedata, addr)
@@ -544,7 +546,7 @@ func (n *node) listenUDP() {
     }
 
 	for {
-		p := make([]byte, 8196)
+		p := make([]byte, 1024)
         len,remoteaddr,err := ser.(*net.UDPConn).ReadFromUDP(p)
 		if common.VERBOSE_EXTRA {
 			fmt.Printf("Read UDP message (%d) %s \n", len, p)
@@ -573,11 +575,12 @@ func (n *node) sendUDPResponse(message string, addr *net.UDPAddr) {
 func (n *node) Run() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	for i:= 0; i < runtime.NumCPU(); i++ {
-		go n.listenUDP()
-		go n.udpHandlerRoutine()
 
 		go n.listenTCP()
 	}
+
+	go n.listenUDP()
+	go n.udpHandlerRoutine()
 
 	n.joinNetwork()
 

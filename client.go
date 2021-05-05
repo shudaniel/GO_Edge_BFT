@@ -11,13 +11,12 @@ import (
 	"strconv"
 	"encoding/json"
 	"io/ioutil"
-	"math/rand"
 	"regexp"
 	"math"
 
 )
 
-var all_start bool
+// var all_start bool
 var lock_mutex = &sync.Mutex{}
 
 type Latencies struct {
@@ -45,6 +44,7 @@ func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 			value := <-input
 			value = strings.Split(strings.TrimSpace(value), common.MESSAGE_DELIMITER)[1]
 			if len(value) > 0 && isValidString(value) {
+				// fmt.Println("received", value)
 				signal <-true
 		
 				temp :=strings.Split(value, "|") [0]
@@ -61,7 +61,7 @@ func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 					}
 				
 				}
-			}  
+			}
 		}
 	}
 
@@ -112,7 +112,7 @@ func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 	}
 }
 
-func client_thread(client_id string, zone string, num_t int, percent float64, summation_ch chan Latencies, start_signal <-chan bool) {
+func client_thread(client_id string, zone string, num_t int, txns []string, summation_ch chan Latencies, start_signal <-chan bool) {
 
 	
 
@@ -156,7 +156,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 	
 	// Read the start signal
 	<-start_signal
-	for all_start {}
+	// for all_start {}
 	// fmt.Println("Got signal, starting now")
 
 
@@ -164,10 +164,11 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 	for i := 0; i < num_t; i++ {
 		// p :=  make([]byte, 512)
 		i_str := strconv.Itoa(i)
+		txn_type := txns[i]
 		client_request := common.MESSAGE_DELIMITER + "CLIENT_REQUEST|" + client_id + "!" + i_str + "!10|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
-		randnum := rand.Float64()
 		// start := time.Now()
-		if randnum < percent {
+		// fmt.Println("sending:", i, client_id)
+		if txn_type == "g" {
 			directory["global"].Write([]byte(client_request))
 			// fmt.Fprintf(directory["global"], client_request)
 
@@ -193,6 +194,7 @@ func client_thread(client_id string, zone string, num_t int, percent float64, su
 			// fmt.Println("Received", string(p), "l")
 		}
 		<-signal
+		// fmt.Println("Signal received to start next", client_id)
 		
 	// 	temp := (strings.Split(string( p ), "*"))[1]
 	// 	fmt.Println("Temp:", temp)
@@ -273,40 +275,39 @@ func summation(num_t int, ch chan Latencies, exit chan FinalResult) {
 
 func main() {
 
-	all_start = true
-	rand.Seed(10)
+	// all_start = true
 	num_c := 10
 	num_t := 10
 	zone := "0"
-	client_id := 0
-	percent := 0.5
+	client_id_seed := 0
+	// percent := 0.5
 	ip_addr := "127.0.0.1"
 	port := 8000
 
 	argsWithoutProg := os.Args[1:]
 	for i, s := range argsWithoutProg {
 		switch s {
-		case "-i":
-			new_i, err := strconv.Atoi(argsWithoutProg[i + 1])
-			if err == nil {
-				client_id = new_i
-			}
-		case "-c":
-			new_c, err := strconv.Atoi(argsWithoutProg[i + 1])
-			if err == nil {
-				num_c = new_c
-			}
-		case "-t":
-			new_t, err := strconv.Atoi(argsWithoutProg[i + 1])
-			if err == nil {
-				num_t = new_t
-			}
+		// case "-i":
+		// 	new_i, err := strconv.Atoi(argsWithoutProg[i + 1])
+		// 	if err == nil {
+		// 		client_id_seed = new_i
+		// 	}
+		// case "-c":
+		// 	new_c, err := strconv.Atoi(argsWithoutProg[i + 1])
+		// 	if err == nil {
+		// 		num_c = new_c
+		// 	}
+		// case "-t":
+		// 	new_t, err := strconv.Atoi(argsWithoutProg[i + 1])
+		// 	if err == nil {
+		// 		num_t = new_t
+		// 	}
 		
-		case "-r":
-			new_r, err := strconv.ParseFloat(argsWithoutProg[i + 1], 64)
-			if err == nil {
-				percent = new_r
-			}
+		// case "-r":
+		// 	new_r, err := strconv.ParseFloat(argsWithoutProg[i + 1], 64)
+		// 	if err == nil {
+		// 		percent = new_r
+		// 	}
 		
 		case "-a":
 			ip_addr = argsWithoutProg[i + 1]
@@ -316,15 +317,15 @@ func main() {
 			if err == nil {
 				port = new_p
 			}
-		case "-z":
-			zone = argsWithoutProg[i + 1]
+		// case "-z":
+		// 	zone = argsWithoutProg[i + 1]
 		}
 
 	}
 
 
 
-	p := make([]byte, 2048)
+	p := make([]byte, 10000)
     addr := net.UDPAddr{
         Port: port,
         IP: net.ParseIP(ip_addr),
@@ -339,15 +340,40 @@ func main() {
 	final_result_ch := make(chan FinalResult)
 	start_signals := make(map[int]chan bool)
 
+	_,remoteaddr,err := ser.ReadFromUDP(p)
+	fmt.Println("First signal received")
+	params := strings.Split( string(p), "|" )
+
+	zone = params[0]
+	num_c, err = strconv.Atoi(params[1])
+	if err != nil {
+		fmt.Println(err)
+	}
+	num_t, err = strconv.Atoi(params[2])
+	if err != nil {
+		fmt.Println(err)
+	}
+	// percent, _ = strconv.ParseFloat(params[3], 64)
+
+	client_txn_data := make(map[string]string)
+	json_err := json.Unmarshal([]byte(params[4]), &client_txn_data)
+	if json_err != nil {
+		fmt.Println(json_err)
+	}
+	fmt.Println("NUM_T:", num_t, ", NUM_C:", num_c, "zone:", zone)
+
 	for k := 0; k < num_c; k++ {
 		start_signals[k] = make(chan bool)
 	}
 
-	_,remoteaddr,err := ser.ReadFromUDP(p)
-	fmt.Println("First signal received")
 
-
-	client_join := common.MESSAGE_DELIMITER + "CLIENT_JOIN|" + strconv.Itoa(client_id) + "|" + zone + "|" + strconv.Itoa(num_c) + "|" + common.MESSAGE_ENDER + common.MESSAGE_ENDER
+	zone_num, err := strconv.Atoi(zone)
+	if err != nil {
+		fmt.Println(err)
+	}
+	client_id_seed = zone_num * num_c
+	fmt.Println("Client id seed", client_id_seed)
+	client_join := common.MESSAGE_DELIMITER + "CLIENT_JOIN|" + strconv.Itoa(client_id_seed) + "|" + zone + "|" + strconv.Itoa(num_c) + "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
 
 	// lock_mutex.Lock()
 	file, err := os.Open("addresses.txt")
@@ -380,7 +406,8 @@ func main() {
 	// ch := make(chan *Latencies)
 
 	for i := 0; i < num_c; i++ {
-    	go client_thread( strconv.Itoa(client_id + i), zone, num_t, percent, summation_ch, start_signals[i])
+		client_id := strconv.Itoa(client_id_seed + i) 
+    	go client_thread( client_id, zone, num_t, strings.Split(client_txn_data[client_id], ","), summation_ch, start_signals[i])
 		time.Sleep(20 * time.Millisecond)
 	}
 
@@ -390,7 +417,7 @@ func main() {
 	for h := 0; h < num_c; h++ {
 		start_signals[h] <-true
 	}
-	all_start = false
+	// all_start = false
 	
 	// min_time := time.Now()
 	// for j := 0; j < num_c; j++ {
@@ -402,7 +429,7 @@ func main() {
 
 	final_sum := <-final_result_ch
 
-	message := "Total latency:" + strconv.FormatFloat(final_sum.total_latencies, 'f', 6, 64) + "|" + strconv.Itoa(final_sum.earliest) + "|" + strconv.Itoa(final_sum.latest) + "|" + strconv.Itoa(final_sum.num_successes) + "*"
+	message := strconv.FormatFloat(final_sum.total_latencies, 'f', 6, 64) + "|" + strconv.Itoa(final_sum.earliest) + "|" + strconv.Itoa(final_sum.latest) + "|" + strconv.Itoa(final_sum.num_successes) + "*"
 	_,err = ser.WriteToUDP([]byte(message), remoteaddr)
     if err != nil {
         fmt.Printf("Couldn't send response %v", err)

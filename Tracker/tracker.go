@@ -1,6 +1,7 @@
 package tracker
 
 import (
+	"EdgeBFT/common"
 	"encoding/json"
 	"fmt"
 )
@@ -50,6 +51,9 @@ func (t *ClientsTracker) GenerateReturnData() string {
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println("JSON:", string(jsonData))
+
+	if common.VERBOSE {
+		fmt.Println("JSON:", string(jsonData))
+	}
 	return string(jsonData)
 }
