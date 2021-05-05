@@ -2,22 +2,29 @@ import argparse
 import subprocess
 import socket
 import shlex
+import json
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--address", "-a", default="127.0.0.1")
 parser.add_argument("--port", "-p",  type=int, default=8000)
-parser.add_argument("--id", "-i",  type=int, default=0)
-parser.add_argument("--zone", "-z", default="0")
-parser.add_argument("--numclients", "-c", type=int, default=1)
-parser.add_argument("--numtransactions", "-t", default="10")
-parser.add_argument("--percent", "-r", type=float, default=0.1)
-
 args = parser.parse_args()
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((args.address, args.port))
 
-client_join = "*CLIENT_JOIN|" + str(args.id) + "|" +args.zone + "|" + str(args.numclients) + "|~*" 
+data, addr = sock.recvfrom(1024)
+params = data.decode().split("|")
+
+zone = params[0]
+numclients = int(params[1])
+numtransactions = int(params[2])
+percent = float(params[3])
+txn_data = json.loads(params[4])
+
+print("TXNs", txn_data)
+id = int(zone) * numclients
+
+client_join = "*CLIENT_JOIN|" + str(id) + "|" +zone + "|" + str(numclients) + "|~*" 
 with open("../addresses.txt", "r") as readfile:
     Lines = readfile.readlines()
     for line in Lines:
@@ -28,9 +35,10 @@ with open("../addresses.txt", "r") as readfile:
 
 procs = []
 # Spawn processes
-for i in range(args.numclients):
-    clientid = str(args.id + i)
-    command = "python3 client.py -z " + args.zone + " -i " + clientid + " -t " + str(args.numtransactions) + " -r " + str(args.percent)
+for i in range(numclients):
+    clientid = str(id + i)
+    # command = "python3 client.py -z " + zone + " -i " + clientid + " -t " + str(numtransactions) + " -r " + str(percent)
+    command = "python3 client.py -z " + zone + " -i " + clientid + " -l " + txn_data[clientid]
     cmd_split = shlex.split(command)
     proc = subprocess.Popen(cmd_split, stdout=subprocess.PIPE, stdin= subprocess.PIPE)
     procs.append(proc)

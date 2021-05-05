@@ -1,26 +1,25 @@
 import socket
 import argparse
 import threading
-import random
 import time
 import json
 import sys
 
 
-def client_thread(id, num_transactions, percent, zone, primaries, times):
+def client_thread(id, txns, zone, primaries, times):
     client_id = id
 
-        
-    for i in range(num_transactions):
-        random_number = random.random()
+    for i in range(len(txns)):
+        txn_type = txns[i]
         new_txn = "*CLIENT_REQUEST|" + str(client_id) + "!" + str(i) + "!10|~*" 
-        msgtype = ""
-        if random_number < percent:
+        # msgtype = ""
+
+        if txn_type == "g":
             # Do a global sync
             # print("Global")
             # print("Sending global:", new_txn, file=sys.stderr)
             primaries["0"].send(new_txn.encode('utf-8'))
-            msgtype = "g"
+            # msgtype = "g"
             data = primaries["0"].recv(128)
         else:
             # print("Local")
@@ -28,7 +27,7 @@ def client_thread(id, num_transactions, percent, zone, primaries, times):
             # print("Sending local:", new_txn, file=sys.stderr)
             primaries[zone].send(new_txn.encode('utf-8'))
            
-            msgtype = "l"
+            # msgtype = "l"
             data = primaries[zone].recv(128)
 
         reply = data.decode()
@@ -43,13 +42,15 @@ def client_thread(id, num_transactions, percent, zone, primaries, times):
 parser = argparse.ArgumentParser()
 parser.add_argument("--id", "-i",  type=int, default=0)
 parser.add_argument("--zone", "-z", default="0")
-parser.add_argument("--numtransactions", "-t", type=int, default=10)
-parser.add_argument("--percent", "-r", type=float, default=0.1)
+# parser.add_argument("--numtransactions", "-t", type=int, default=10)
+# parser.add_argument("--percent", "-r", type=float, default=0.1)
+parser.add_argument("--list", "-l")
 
 times = []
 args = parser.parse_args()
+txns = args.list.split(",")
 
-
+print("Txn list:", txns , file=sys.stderr)
 # sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 # sock.bind((args.address, args.port))
 
@@ -66,9 +67,9 @@ with open("primaries.json", "r") as readfile:
 # start = input("input")
 
 start = input() # Wait for start signal
-print(start, file=sys.stderr)
+# print(start, file=sys.stderr)
 
-client_thread(args.id, args.numtransactions, args.percent, args.zone, primaries, times)
+client_thread(args.id, txns, args.zone, primaries, times)
 
 times_sum = 0
 starttime = 0

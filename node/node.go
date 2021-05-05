@@ -3,9 +3,11 @@ import (
     "fmt" 
     "net"  
 	"EdgeBFT/pbft"
+	"EdgeBFT/tracker"
 	"EdgeBFT/endorsement"
 	"EdgeBFT/common"
 	"encoding/hex"
+	"encoding/json"
 	"EdgeBFT/paxos"
 	"strconv"
 	"strings"
@@ -17,7 +19,6 @@ import (
 	"crypto/rsa"
 	"runtime"
 	"regexp"
-	// "unicode"
 	"github.com/libp2p/go-reuseport"
 )
 
@@ -29,7 +30,6 @@ type IncomingTCPMessage struct {
 	outbox chan string
 }
 
-
 type IncomingUDPMessage struct {
 	Msg []byte
 	Address *net.UDPAddr
@@ -38,6 +38,11 @@ type IncomingUDPMessage struct {
 type OutgoingUDPMessage struct {
     recipient *net.UDPAddr
     data      []byte
+}
+
+type CompletedTxn struct {
+	latency float64
+	clientid string
 }
 
 type node struct {
@@ -58,6 +63,7 @@ type node struct {
 	public_keys            map[string]*rsa.PublicKey
 	private_key            *rsa.PrivateKey
 	client_list map[string]bool
+	txn_input chan CompletedTxn
 	//localLog          []common.Message
 }
 
@@ -85,7 +91,7 @@ func NewNode(ip string, port int, z string, f int) *node {
 		endorse_signals:             make(map[string]chan string),
 		pbft_signals:             make(map[string]chan bool),
 		paxos_signals:             make(map[string]chan bool),
-
+		txn_input: make(chan CompletedTxn, common.MAX_CHANNEL_SIZE),
 		client_list: make(map[string]bool),
 	}
 	newNode.public_keys[newNode.id] = pub_key
@@ -258,6 +264,11 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 		end = time.Now()
 		difference := end.Sub(start)
 		total_time = difference.Seconds() 
+
+		n.txn_input <- CompletedTxn{
+			latency: total_time,
+			clientid: client_id,
+		}
 		if common.VERBOSE && common.VERBOSE_EXTRA {
 			fmt.Println("Got response from paxos for ", message, txn_type, total_time)
 		}
@@ -321,7 +332,9 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 
 func (n *node) handleUDPMessage(message string, addr *net.UDPAddr) {
 	components := strings.Split(message, "|")
-	// fmt.Printf("Received: %s \n", message)
+	if common.VERBOSE {
+		fmt.Printf("Received: %s \n", message)	
+	}
 	msg_type := components[0]
 	switch msg_type {
 	case "CLIENT_JOIN":
@@ -329,10 +342,52 @@ func (n *node) handleUDPMessage(message string, addr *net.UDPAddr) {
 		zone := components[2]
 		num_c, _ := strconv.Atoi(components[3])
 		n.handleClientJoin(clientid, zone, num_c)
-
+	case "TXN_DATA":
+		txn_json_data := components[1]
+		go n.RunClientTracker(n.zone, txn_json_data, addr)
 	case "RESET":
 		n.reset()
 	}
+}
+
+func (n *node)  RunClientTracker(zone string, txn_json string, addr *net.UDPAddr) {
+	type ClientJsondata struct {
+		Zone string
+		Clientid string
+		Numtxn int
+	}
+
+	fmt.Println("Received txn_json", txn_json)
+	var clientTxnInfo []ClientJsondata
+	byt := []byte(txn_json)
+	tracker := tracker.NewClientsTracker()
+	if err := json.Unmarshal(byt, &clientTxnInfo); err != nil {
+        fmt.Println(err)
+		return
+    }
+
+	fmt.Println("clienttTxnInfo:", clientTxnInfo)
+	// Count the total number of transactions you expect
+	num_total_transactions := 0
+	for i := 0; i < len(clientTxnInfo); i++ {
+		if clientTxnInfo[i].Zone == n.zone {
+			num_total_transactions += clientTxnInfo[i].Numtxn
+			tracker.AddClient( clientTxnInfo[i].Clientid )
+		}
+	}
+
+	fmt.Println("Expecting", num_total_transactions, "txns")
+
+	// Wait to get the transaction data
+	for i := 0; i < num_total_transactions; i++ {
+		data := <-n.txn_input
+		tracker.AddLatency(data.clientid, data.latency)	
+	}
+	
+
+	// Send the response back 
+	responsedata := tracker.GenerateReturnData()
+	n.sendUDPResponse(responsedata, addr)
 }
 
 
@@ -464,8 +519,10 @@ func (n *node) listenUDP() {
 
 	for {
 		p := make([]byte, 1024)
-        _,remoteaddr,err := ser.(*net.UDPConn).ReadFromUDP(p)
-        // fmt.Printf("Read a message (%d) %s \n", len, p)
+        len,remoteaddr,err := ser.(*net.UDPConn).ReadFromUDP(p)
+		if common.VERBOSE_EXTRA {
+			fmt.Printf("Read UDP message (%d) %s \n", len, p)
+		}
 		n.inboxUDP <- IncomingUDPMessage{
 			Msg: p,
 			Address: remoteaddr,
