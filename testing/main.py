@@ -13,6 +13,7 @@ parser.add_argument("--port", "-p",  type=int, default=8000)
 parser.add_argument("--numclients", "-c", type=int, default=1)
 parser.add_argument("--numtransactions", "-t", type=int, default=10)
 parser.add_argument("--percent", "-r", type=float, default=0.1)
+parser.add_argument("--baseline", "-b", type=int, default=0)
 args = parser.parse_args()
 
 
@@ -33,26 +34,27 @@ clients = {
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((args.address, args.port))
 
-
-txns_list_for_server, txns_dict_for_client, client_throughput = generate_txns(num_t = args.numtransactions, num_c = args.numclients, percent = args.percent, num_zones = len(clients.keys()))
+do_baseline = args.baseline == 1
+txns_list_for_server, txns_dict_for_client, client_throughput = generate_txns(num_t = args.numtransactions, num_c = args.numclients, percent = args.percent, num_zones = len(clients.keys()), do_baseline = do_baseline)
 with open("primaries.json", "r") as readfile:
     primary_info = json.loads(readfile.read())
     for i in range(len(primary_info)):
         # Connect with the primaries via tcp
-        target_addr = (primary_info[i]["ip"], int(primary_info[i]["port"]))
-        msg = "*TXN_DATA|" + txns_list_for_server + "|~*"
-        encoded_msg = msg.encode('utf-8')
-        print("sending TXN_DATA to", target_addr, "of len", len(encoded_msg))
-        # Send in 1024 byte chunks
-        start = 0
-        while start + 1024 <= len(encoded_msg):
-            sock.sendto( encoded_msg[start:(start + 1024)] , target_addr)
-            start += 1024
-            time.sleep(0.2)
-        
-        # One more fragment to send
-        if start < len(encoded_msg):
-            sock.sendto( encoded_msg[start:] , target_addr)
+        if not do_baseline or primary_info[i]["zone"] == "0":
+            target_addr = (primary_info[i]["ip"], int(primary_info[i]["port"]))
+            msg = "*TXN_DATA|" + txns_list_for_server + "|~*"
+            encoded_msg = msg.encode('utf-8')
+            print("sending TXN_DATA to", target_addr, "of len", len(encoded_msg))
+            # Send in 1024 byte chunks
+            start = 0
+            while start + 1024 <= len(encoded_msg):
+                sock.sendto( encoded_msg[start:(start + 1024)] , target_addr)
+                start += 1024
+                time.sleep(0.2)
+            
+            # One more fragment to send
+            if start < len(encoded_msg):
+                sock.sendto( encoded_msg[start:] , target_addr)
 
 
 start = input("Push any key to start")
@@ -68,7 +70,7 @@ start = input("Push any key to start")
 
 for zone in clients:
     # Signal all the client_masters to start
-    msg = zone + "|" + str(args.numclients) + "|" + str(args.numtransactions) + "|" + str(args.percent) + "|" + json.dumps(txns_dict_for_client[zone]) + "|"
+    msg = zone + "|" + str(args.numclients) + "|" + str(args.numtransactions) + "|" + str(args.percent) + "|" + json.dumps(txns_dict_for_client[zone]) + "|" + str(args.baseline) + "|"
     startmsg = msg.encode('utf-8')
     sock.sendto(startmsg, clients[zone])
 

@@ -360,7 +360,10 @@ func main() {
 	if json_err != nil {
 		fmt.Println(json_err)
 	}
-	fmt.Println("NUM_T:", num_t, ", NUM_C:", num_c, "zone:", zone)
+
+	baseline, err := strconv.Atoi(params[5])
+
+	fmt.Println("NUM_T:", num_t, ", NUM_C:", num_c, "zone:", zone, "baseline", baseline)
 
 	for k := 0; k < num_c; k++ {
 		start_signals[k] = make(chan bool)
@@ -372,6 +375,9 @@ func main() {
 		fmt.Println(err)
 	}
 	client_id_seed = zone_num * num_c
+	if baseline == 1 {
+		zone = "0"
+	}
 	fmt.Println("Client id seed", client_id_seed)
 	client_join := common.MESSAGE_DELIMITER + "CLIENT_JOIN|" + strconv.Itoa(client_id_seed) + "|" + zone + "|" + strconv.Itoa(num_c) + "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
 
@@ -404,6 +410,8 @@ func main() {
 
 	go summation(num_t * num_c, summation_ch, final_result_ch)
 	// ch := make(chan *Latencies)
+
+	// If baseline is set to 1, then that means everyone is doing pbft and their zone should be 0
 
 	for i := 0; i < num_c; i++ {
 		client_id := strconv.Itoa(client_id_seed + i) 
