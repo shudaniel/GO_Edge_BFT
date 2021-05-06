@@ -23,7 +23,7 @@ import (
 )
 
 var lock_mutex = &sync.Mutex{}
-var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*$`) 
+var isValidString = regexp.MustCompile(`[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*`) 
 
 type IncomingTCPMessage struct {
 	Msg []byte
