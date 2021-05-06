@@ -414,8 +414,6 @@ func (n *node)  RunClientTracker(zone string, txn_json string, outbox chan strin
 		tracker.AddLatency(data.clientid, data.latency)	
 	}
 	
-	time.Sleep(10 * time.Second)
-
 	fmt.Println("Done with txns, going to send back resposne now")
 	// Send the response back 
 	responsedata := tracker.GenerateReturnData()
