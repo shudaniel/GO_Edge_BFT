@@ -37,7 +37,7 @@ type IncomingUDPMessage struct {
 
 type OutgoingUDPMessage struct {
     recipient *net.UDPAddr
-    data      []byte
+    data      string
 }
 
 type CompletedTxn struct {
@@ -532,21 +532,22 @@ func (n *node) listenUDP() {
         for msg := range outbox {
 			start := 0
 
+
 			// Send in 2048 byte chunks
-			for start + 2048 < len(msg.data) {
-				n, err = ser.(*net.UDPConn).WriteToUDP(msg.data[start:(start + 2048)], msg.recipient)
+			for start + 2046 < len(msg.data) {
+				n, err = ser.(*net.UDPConn).WriteToUDP([]byte( common.MESSAGE_DELIMITER + msg.data[start:(start + 2046)] + common.MESSAGE_DELIMITER ), msg.recipient)
 				if err != nil {
 					fmt.Println(err)
 				}
-				if n != 2048 {
-					fmt.Println("Tried to send", len(msg.data[start:(start + 2048)]), "bytes but only sent ", n)
+				if n != 2046 {
+					fmt.Println("Tried to send", len(msg.data[start:(start + 2046)]), "bytes but only sent ", n)
 				}
 
-				start += 2048
+				start += 2046
 				// Sleep a little to ensure the message arrives in order
 				time.Sleep(400 * time.Millisecond)
 			}
-			n, err = ser.(*net.UDPConn).WriteToUDP(msg.data[start:], msg.recipient)
+			n, err = ser.(*net.UDPConn).WriteToUDP([]byte(common.MESSAGE_DELIMITER + msg.data[start:] + common.MESSAGE_DELIMITER ), msg.recipient)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -581,7 +582,7 @@ func (n *node) sendUDPResponse(message string, addr *net.UDPAddr) {
 	// Place the message on an outbox
 	n.outboxUDP <- OutgoingUDPMessage{
 		recipient: addr,
-		data: []byte(message + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER),
+		data: (message + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER),
 	}
 	
 }

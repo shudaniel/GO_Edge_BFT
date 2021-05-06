@@ -325,7 +325,7 @@ func main() {
 
 
 
-	p := make([]byte, 10000)
+	p := make([]byte, 2049)
     addr := net.UDPAddr{
         Port: port,
         IP: net.ParseIP(ip_addr),
@@ -335,14 +335,37 @@ func main() {
         fmt.Printf("Some error %v\n", err)
         return
     }
-
+	var remoteaddr *net.UDPAddr
 	summation_ch := make(chan Latencies, num_c * num_t)
 	final_result_ch := make(chan FinalResult)
 	start_signals := make(map[int]chan bool)
 
-	_,remoteaddr,err := ser.ReadFromUDP(p)
+	waiting_for_start_signal := true
+	start_message := ""
+	var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*$`).MatchString 
+	for waiting_for_start_signal {
+		_,remoteaddr,_ = ser.ReadFromUDP(p)
+		// fmt.Println("Fragment", string(p))
+		for _, value := range strings.Split(strings.TrimSpace(string(p)), common.MESSAGE_DELIMITER) {
+			// fmt.Println("Fragment", len(value), value)
+			if len(value) > 0 && isValidString(value) {
+				start_message = start_message + value
+				fmt.Println(len(start_message))
+				// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
+				if start_message[len(start_message)-1:] == common.MESSAGE_ENDER {
+					waiting_for_start_signal = false	
+					break
+				} 
+				
+			} 
+		}
+
+	}
+	start_message = start_message[0:len(start_message)-1]
+	// fmt.Println("Start message:", start_message)
+
 	fmt.Println("First signal received")
-	params := strings.Split( string(p), "|" )
+	params := strings.Split( start_message, "|" )
 
 	zone = params[0]
 	num_c, err = strconv.Atoi(params[1])

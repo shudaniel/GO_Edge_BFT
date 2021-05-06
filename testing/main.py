@@ -37,7 +37,7 @@ def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_th
     message = ""
 
     while True:
-        data, addr = sock.recvfrom(2048)
+        data, addr = sock.recvfrom(3000)
         msg = data.decode()
         msg_split = msg.split("*")
         for msg_component in msg_split:
@@ -78,22 +78,22 @@ parser.add_argument("--baseline", "-b", type=int, default=0)
 args = parser.parse_args()
 
 
-# clients = {
-#     "0": ("127.0.0.1", 7000),  
-#     "1": ("127.0.0.1", 7100), 
-#     "2": ("127.0.0.1", 7200), 
-# }
+clients = {
+    "0": ("127.0.0.1", 7000),  
+    "1": ("127.0.0.1", 7100), 
+    "2": ("127.0.0.1", 7200), 
+}
 
 stats = {
     "total_latency": 0.0,
     "total_txn": 0
 }
 
-clients = {
-    "0": ("54.241.99.239", 8000),  
-    "1": ("3.138.116.243", 8000), 
-    "2": ("35.182.100.47", 8000), 
-}
+# clients = {
+#     "0": ("54.241.99.239", 8000),  
+#     "1": ("3.138.116.243", 8000), 
+#     "2": ("35.182.100.47", 8000), 
+# }
 
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -138,9 +138,19 @@ start = input("Push any key to start\n")
 
 for zone in clients:
     # Signal all the client_masters to start
-    msg = zone + "|" + str(args.numclients) + "|" + str(args.numtransactions) + "|" + str(args.percent) + "|" + json.dumps(txns_dict_for_client[zone]) + "|" + str(args.baseline) + "|"
-    startmsg = msg.encode('utf-8')
-    sock.sendto(startmsg, clients[zone])
+    msg = zone + "|" + str(args.numclients) + "|" + str(args.numtransactions) + "|" + str(args.percent) + "|" + json.dumps(txns_dict_for_client[zone]) + "|" + str(args.baseline) + "|~"
+    
+    index = 0
+
+    while index + 2046 <= len(msg): 
+
+        fragment = "*" + msg[index:(index + 2046)] + "*"
+        sock.sendto( fragment.encode('utf-8'), clients[zone])
+        index += 2046
+        time.sleep(0.1)
+    if index < len(msg):
+        fragment = "*" + msg[index:] + "*"
+        sock.sendto(fragment.encode('utf-8'), clients[zone])
 
 start = input("Push any key to start again")
 start_time = time.time()
