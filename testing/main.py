@@ -53,7 +53,7 @@ def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_th
                 if msg_component[-1] != "~":
                     continue
                 else:
-                    message = message[:-1]
+                    message = message[:-2]
                     lock.acquire()
                     json_data = json.loads(message)
                     for clientid in json_data:
