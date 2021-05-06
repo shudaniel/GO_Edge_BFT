@@ -13,7 +13,7 @@ import (
 	"io/ioutil"
 	"regexp"
 	"math"
-
+	"github.com/libp2p/go-reuseport"
 )
 
 // var all_start bool
@@ -330,37 +330,51 @@ func main() {
         Port: port,
         IP: net.ParseIP(ip_addr),
     }
-	ser, err := net.ListenUDP("udp", &addr)
+	serudp, err := net.ListenUDP("udp", &addr)
     if err != nil {
         fmt.Printf("Some error %v\n", err)
         return
     }
-	var remoteaddr *net.UDPAddr
+
+	ser, err := reuseport.Listen("tcp", ip_addr + ":" + strconv.Itoa(port))
+    if err != nil {
+        fmt.Printf("Some error %v\n", err)
+        return 
+    }
+
+	c, err := ser.Accept()
+
+	// var remoteaddr *net.UDPAddr
 	summation_ch := make(chan Latencies, num_c * num_t)
 	final_result_ch := make(chan FinalResult)
 	start_signals := make(map[int]chan bool)
 
 	waiting_for_start_signal := true
 	start_message := ""
-	var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*$`).MatchString 
+	re := regexp.MustCompile(`[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*`) 
 	for waiting_for_start_signal {
-		_,remoteaddr,_ = ser.ReadFromUDP(p)
+		c.Read(p)
 		// fmt.Println("Fragment", string(p))
 		for _, value := range strings.Split(strings.TrimSpace(string(p)), common.MESSAGE_DELIMITER) {
 			// fmt.Println("Fragment", len(value), value)
-			if len(value) > 0 && isValidString(value) {
-				start_message = start_message + value
-				fmt.Println(len(start_message))
-				// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
-				if start_message[len(start_message)-1:] == common.MESSAGE_ENDER {
-					waiting_for_start_signal = false	
-					break
+			matches := re.FindAllString(value, -1)
+			for _, v := range matches {
+				if len(v) > 0 {
+					start_message = start_message + v
+					fmt.Println(len(start_message))
+					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
+					if start_message[len(start_message)-1:] == common.MESSAGE_ENDER {
+						waiting_for_start_signal = false	
+						break
+					} 
+					
 				} 
-				
-			} 
+			}
+			
 		}
 
 	}
+	c.Close()
 	start_message = start_message[0:len(start_message)-1]
 	// fmt.Println("Start message:", start_message)
 
@@ -442,7 +456,7 @@ func main() {
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	_,remoteaddr,err = ser.ReadFromUDP(p)
+	_,_,_ = serudp.ReadFromUDP(p)
 	fmt.Println("Second signal received")
 
 	for h := 0; h < num_c; h++ {
@@ -459,11 +473,13 @@ func main() {
 	// }
 
 	final_sum := <-final_result_ch
+	fmt.Println("Latency:", final_sum.total_latencies)
+	fmt.Println("Num:", final_sum.num_successes)
 
-	message := strconv.FormatFloat(final_sum.total_latencies, 'f', 6, 64) + "|" + strconv.Itoa(final_sum.earliest) + "|" + strconv.Itoa(final_sum.latest) + "|" + strconv.Itoa(final_sum.num_successes) + "*"
-	_,err = ser.WriteToUDP([]byte(message), remoteaddr)
-    if err != nil {
-        fmt.Printf("Couldn't send response %v", err)
-    }
+	// message := strconv.FormatFloat(final_sum.total_latencies, 'f', 6, 64) + "|" + strconv.Itoa(final_sum.earliest) + "|" + strconv.Itoa(final_sum.latest) + "|" + strconv.Itoa(final_sum.num_successes) + "*"
+	// _,err = ser.WriteToUDP([]byte(message), remoteaddr)
+    // if err != nil {
+    //     fmt.Printf("Couldn't send response %v", err)
+    // }
 	fmt.Println("Done")
 }
