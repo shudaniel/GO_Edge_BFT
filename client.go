@@ -39,29 +39,33 @@ type Primaries struct {
 func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 
 	parseMessage := func(input chan string, result chan Latencies, signal chan bool) {
-		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/]*$`).MatchString 
+		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/]*$`) 
 		for {
-			value := <-input
-			value = strings.Split(strings.TrimSpace(value), common.MESSAGE_DELIMITER)[1]
-			if len(value) > 0 && isValidString(value) {
-				// fmt.Println("received", value)
-				signal <-true
-		
-				temp :=strings.Split(value, "|") [0]
-				components := strings.Split(temp, ",")
-				temp2, err := strconv.ParseFloat(components[0], 64)
-				if err != nil {
-					fmt.Println(err)
-				} else {
-					// fmt.Println(temp2)
-					result <- Latencies {
-						time: temp2,
-						start: components[1],
-						end: components[2],
+			raw_msg := <-input
+			// value = strings.Split(strings.TrimSpace(value), common.MESSAGE_DELIMITER)[1]
+			matches := isValidString.FindAllString(raw_msg, -1) 
+			for _, value := range matches {
+				if len(value) > 0{
+					// fmt.Println("received", value)
+					signal <-true
+			
+					temp :=strings.Split(value, "|") [0]
+					components := strings.Split(temp, ",")
+					temp2, err := strconv.ParseFloat(components[0], 64)
+					if err != nil {
+						fmt.Println(err)
+					} else {
+						// fmt.Println(temp2)
+						result <- Latencies {
+							time: temp2,
+							start: components[1],
+							end: components[2],
+						}
+					
 					}
-				
 				}
-			}
+			}	
+			
 		}
 	}
 
@@ -103,7 +107,8 @@ func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 		p := make([]byte, 55)
 		_, err := c.Read(p)
 		if err == nil {
-			input <- string(p)
+			signal <-true
+			// input <- string(p)
 		}
 		// temp := (strings.Split(string( p ), "*"))[1]
 		// fmt.Println("Temp:", temp)
