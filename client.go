@@ -353,7 +353,13 @@ func main() {
 	start_message := ""
 	re := regexp.MustCompile(`[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*`) 
 	for waiting_for_start_signal {
-		c.Read(p)
+		_, err := c.Read(p)
+		if err != nil {
+			if err.Error() == "EOF" {
+				fmt.Println("EOF detected")
+				break
+			}
+		}
 		// fmt.Println("Fragment", string(p))
 		for _, value := range strings.Split(strings.TrimSpace(string(p)), common.MESSAGE_DELIMITER) {
 			// fmt.Println("Fragment", len(value), value)
