@@ -23,7 +23,7 @@ import (
 )
 
 var lock_mutex = &sync.Mutex{}
-var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*$`).MatchString 
+var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*$`) 
 
 type IncomingTCPMessage struct {
 	Msg []byte
@@ -175,17 +175,19 @@ func (n *node) udpHandlerRoutine() {
 	for {
 		received_data = <- n.inboxUDP
 		for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), common.MESSAGE_DELIMITER) {
-			
-			if len(value) > 0 && isValidString(value) {
-				// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
-				if value[len(value)-1:] == common.MESSAGE_ENDER {
-					go n.handleUDPMessage(message + value, received_data.Address)
-					message = ""
-				} else {
-					message = message + value
-					// fmt.Println("Message so far ************************************************************************\n", message)
+			matches := isValidString.FindAllString(value, -1)
+			for _, v := range matches {
+				if len(v) > 0  {
+					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
+					if v[len(value)-1:] == common.MESSAGE_ENDER {
+						go n.handleUDPMessage(message + v, received_data.Address)
+						message = ""
+					} else {
+						message = message + v
+						// fmt.Println("Message so far ************************************************************************\n", message)
+					}
+					
 				}
-				
 			}
 		}
 		
@@ -444,15 +446,18 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 				if common.VERBOSE && common.VERBOSE_EXTRA {
 					fmt.Println("Raw Received", value)
 				}
-				if len(value) > 0 && isValidString(value) {
-					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
-					if value[len(value)-1:] == common.MESSAGE_ENDER {
-						go n.handleTCPMessage(message + value, received_data.outbox)
-						message = ""
-					} else {
-						message = message + value
+				matches := isValidString.FindAllString(value, -1)
+				for _, v := range matches {
+					if len(v) > 0 {
+						// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
+						if v[len(v)-1:] == common.MESSAGE_ENDER {
+							go n.handleTCPMessage(message + v, received_data.outbox)
+							message = ""
+						} else {
+							message = message + v
+						}
+						
 					}
-					
 				}
 			}
 			
