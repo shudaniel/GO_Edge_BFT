@@ -140,8 +140,8 @@ start = input("Push any key to start\n")
 #             sock.sendto(reset_msg, (addr[0], addr[1]))
 
 
-socktcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 for zone in clients:
+    socktcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     socktcp.connect(clients[zone])
     # Signal all the client_masters to start
     msg = zone + "|" + str(args.numclients) + "|" + str(args.numtransactions) + "|" + str(args.percent) + "|" + json.dumps(txns_dict_for_client[zone]) + "|" + str(args.baseline) + "|~"
@@ -157,8 +157,7 @@ for zone in clients:
     # if index < len(msg):
     #     fragment = "*" + msg[index:] + "*"
     #     sock.sendto(fragment.encode('utf-8'), clients[zone])
-    time.sleep(2)
-    socktcp.close()
+    
 
 start = input("Push any key to start again")
 start_time = time.time()
