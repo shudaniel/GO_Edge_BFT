@@ -157,7 +157,7 @@ for zone in clients:
     # if index < len(msg):
     #     fragment = "*" + msg[index:] + "*"
     #     sock.sendto(fragment.encode('utf-8'), clients[zone])
-    
+    socktcp.close()
 
 start = input("Push any key to start again")
 start_time = time.time()
