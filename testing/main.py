@@ -43,7 +43,7 @@ def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_th
 
         regex_match = r'^[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*$'
         while True:
-            data, addr = sock.recv(8196)
+            data = sock.recv(8196)
             msg = data.decode()
             msg_split = msg.split("*")
             for msg_component in msg_split:
