@@ -414,6 +414,7 @@ func (n *node)  RunClientTracker(zone string, txn_json string, outbox chan strin
 		tracker.AddLatency(data.clientid, data.latency)	
 	}
 	
+	time.Sleep(10 * time.Second)
 
 	fmt.Println("Done with txns, going to send back resposne now")
 	// Send the response back 
@@ -427,7 +428,7 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 	fmt.Printf("Serving %s\n", c.RemoteAddr().String())
 
 	// On connect, send a JOIN message
-	join_msg := common.MESSAGE_DELIMITER + n.createJoinMessage(false) + "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
+	join_msg := n.createJoinMessage(false) + "|" + common.MESSAGE_ENDER 
 	c.Write([]byte(join_msg))
 
 
@@ -445,24 +446,24 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 		message := ""
 		for {
 			received_data = <- inbox
-			for _, value := range strings.Split(strings.TrimSpace(string(received_data.Msg)), common.MESSAGE_DELIMITER) {
-				if common.VERBOSE && common.VERBOSE_EXTRA {
-					fmt.Println("Raw Received", value)
-				}
-				matches := isValidString.FindAllString(value, -1)
-				for _, v := range matches {
-					if len(v) > 0 {
-						// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
-						if v[len(v)-1:] == common.MESSAGE_ENDER {
-							go n.handleTCPMessage(message + v, received_data.outbox)
-							message = ""
-						} else {
-							message = message + v
-						}
-						
+			value := string(received_data.Msg)
+			if common.VERBOSE && common.VERBOSE_EXTRA {
+				fmt.Println("Raw Received", value)
+			}
+			matches := isValidString.FindAllString(value, -1)
+			for _, v := range matches {
+				if len(v) > 0 {
+					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
+					if v[len(v)-1:] == common.MESSAGE_ENDER {
+						go n.handleTCPMessage(message + v, received_data.outbox)
+						message = ""
+					} else {
+						message = message + v
 					}
+					
 				}
 			}
+			
 			
 			
 
@@ -503,7 +504,7 @@ func (n *node) sendTCPResponse(message string, outbox chan string) {
 	if common.VERBOSE {
 		fmt.Println("Sending", message)
 	}
-	outbox <- (common.MESSAGE_DELIMITER + message + "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER)
+	outbox <- (message + "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER)
 }
 
 func (n *node) listenTCP() {
