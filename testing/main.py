@@ -5,6 +5,7 @@ import os
 import json
 import argparse
 import threading
+import re
 from random_txn_generator import generate_txns
 
 lock = threading.Lock()
@@ -36,12 +37,13 @@ def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_th
     print("Done")
     message = ""
 
+    regex_match = r'^[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*$'
     while True:
-        data, addr = sock.recvfrom(3000)
+        data, addr = sock.recvfrom(2048)
         msg = data.decode()
         msg_split = msg.split("*")
         for msg_component in msg_split:
-            if len(msg_component) == 0:
+            if len(msg_component) == 0 or not re.match(regex_match, msg_component):
                 continue
             message = message + msg_component
             if msg_component[-1] != "~":

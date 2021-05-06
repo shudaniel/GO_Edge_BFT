@@ -539,11 +539,11 @@ func (n *node) listenUDP() {
 				if err != nil {
 					fmt.Println(err)
 				}
-				if n != 2046 {
-					fmt.Println("Tried to send", len(msg.data[start:(start + 2046)]), "bytes but only sent ", n)
+				if n != 2048 {
+					fmt.Println("Tried to send", len(msg.data[start:(start + 2046)]) + 2, "bytes but only sent ", n)
 				}
 
-				start += 2046
+				start += 2048
 				// Sleep a little to ensure the message arrives in order
 				time.Sleep(400 * time.Millisecond)
 			}
@@ -551,8 +551,8 @@ func (n *node) listenUDP() {
 			if err != nil {
 				fmt.Println(err)
 			}
-			if n != len(msg.data[start:]) {
-				fmt.Println("Tried to send", len(msg.data[start:]), "bytes but only sent ", n)
+			if n != (len(msg.data[start:]) + 2) {
+				fmt.Println("Tried to send", len(msg.data[start:]) + 2, "bytes but only sent ", n)
 			}
 
         }
