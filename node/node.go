@@ -544,7 +544,7 @@ func (n *node) listenUDP() {
 
 				start += 2048
 				// Sleep a little to ensure the message arrives in order
-				time.Sleep(200 * time.Millisecond)
+				time.Sleep(400 * time.Millisecond)
 			}
 			n, err = ser.(*net.UDPConn).WriteToUDP(msg.data[start:], msg.recipient)
 			if err != nil {
