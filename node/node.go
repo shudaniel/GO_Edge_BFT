@@ -348,7 +348,9 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 		clientid := components[1]
 		pbft_msg := components[2]
 		n.pbft_state.HandleMessage(pbft_msg, n.broadcastToZone ,n.id, clientid, n.pbft_signals[clientid])
-
+	case "TXN_DATA":
+		txn_json_data := components[1]
+		go n.RunClientTracker(n.zone, txn_json_data, outbox)
 	case "CLIENT_REQUEST":
 		request_msg := components[1]
 		n.handleClientRequest(request_msg, outbox)
@@ -368,15 +370,15 @@ func (n *node) handleUDPMessage(message string, addr *net.UDPAddr) {
 		zone := components[2]
 		num_c, _ := strconv.Atoi(components[3])
 		n.handleClientJoin(clientid, zone, num_c)
-	case "TXN_DATA":
-		txn_json_data := components[1]
-		go n.RunClientTracker(n.zone, txn_json_data, addr)
+	// case "TXN_DATA":
+	// 	txn_json_data := components[1]
+	// 	go n.RunClientTracker(n.zone, txn_json_data, addr)
 	case "RESET":
 		n.reset()
 	}
 }
 
-func (n *node)  RunClientTracker(zone string, txn_json string, addr *net.UDPAddr) {
+func (n *node)  RunClientTracker(zone string, txn_json string, outbox chan string) {
 	type ClientJsondata struct {
 		Zone string
 		Clientid string
@@ -416,7 +418,8 @@ func (n *node)  RunClientTracker(zone string, txn_json string, addr *net.UDPAddr
 	fmt.Println("Done with txns, going to send back resposne now")
 	// Send the response back 
 	responsedata := tracker.GenerateReturnData()
-	n.sendUDPResponse(responsedata, addr)
+	n.sendTCPResponse(responsedata, outbox)
+	// n.sendUDPResponse(responsedata, addr)
 }
 
 

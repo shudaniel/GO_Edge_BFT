@@ -13,59 +13,63 @@ lock = threading.Lock()
 def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_throughput, do_baseline, stats):
     global lock
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    print("Listening on", addr, port)
-    sock.bind((addr, port))
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # print("Listening on", addr, port)
+    # sock.bind((addr, port))
   
     # Connect with the primaries via tcp
     if not do_baseline or primary_info["zone"] == "0":
         target_addr = (primary_info["ip"], int(primary_info["port"]))
+        sock.connect(target_addr)
+        sock.recv(1024) # Ignore the JOIN message
         msg = "*TXN_DATA|" + txns_list_for_server + "|~*"
         encoded_msg = msg.encode('utf-8')
         print("sending TXN_DATA to", target_addr, "of len", len(encoded_msg))
+
+        sock.send(encoded_msg)
         # Send in 1024 byte chunks
-        start = 0
-        while start + 1024 <= len(encoded_msg):
-            sock.sendto( encoded_msg[start:(start + 1024)] , target_addr)
-            start += 1024
-            time.sleep(0.1)
+        # start = 0
+        # while start + 1024 <= len(encoded_msg):
+        #     sock.sendto( encoded_msg[start:(start + 1024)] , target_addr)
+        #     start += 1024
+        #     time.sleep(0.1)
         
-        # One more fragment to send
-        if start < len(encoded_msg):
-            sock.sendto( encoded_msg[start:] , target_addr)
+        # # One more fragment to send
+        # if start < len(encoded_msg):
+        #     sock.sendto( encoded_msg[start:] , target_addr)
     
-    print("Done")
-    message = ""
+        print("Done")
+        message = ""
 
-    regex_match = r'^[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*$'
-    while True:
-        data, addr = sock.recvfrom(2048)
-        msg = data.decode()
-        msg_split = msg.split("*")
-        for msg_component in msg_split:
-            if len(msg_component) == 0 or not re.match(regex_match, msg_component):
-                continue
-            message = message + msg_component
-            if msg_component[-1] != "~":
-               continue
-            else:
-                message = message[:-1]
-                lock.acquire()
-                json_data = json.loads(message)
-                for clientid in json_data:
-                    stats["total_latency"] += json_data[clientid]["totallatency"]
-                    stats["total_txn"] += json_data[clientid]["numtxn"]
-                    client_throughput[clientid]["total_latency"] += json_data[clientid]["totallatency"]
-                    client_throughput[clientid]["received_txns"] += json_data[clientid]["numtxn"]
-                print("Total Latency:", stats["total_latency"], "|Total txn:", stats["total_txn"])
-                total_throughput = 0
-                for clientid in client_throughput:
-                    if client_throughput[clientid]["received_txns"] > 0:
-                        total_throughput += client_throughput[clientid]["received_txns"] / client_throughput[clientid]["total_latency"]
-                print("Total Throughput:", total_throughput)
+        regex_match = r'^[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*$'
+        while True:
+            data, addr = sock.recv(8196)
+            msg = data.decode()
+            msg_split = msg.split("*")
+            for msg_component in msg_split:
+                if len(msg_component) == 0 or not re.match(regex_match, msg_component):
+                    continue
+                message = message + msg_component
+                if msg_component[-1] != "~":
+                    continue
+                else:
+                    message = message[:-1]
+                    lock.acquire()
+                    json_data = json.loads(message)
+                    for clientid in json_data:
+                        stats["total_latency"] += json_data[clientid]["totallatency"]
+                        stats["total_txn"] += json_data[clientid]["numtxn"]
+                        client_throughput[clientid]["total_latency"] += json_data[clientid]["totallatency"]
+                        client_throughput[clientid]["received_txns"] += json_data[clientid]["numtxn"]
+                    print("Total Latency:", stats["total_latency"], "|Total txn:", stats["total_txn"])
+                    total_throughput = 0
+                    for clientid in client_throughput:
+                        if client_throughput[clientid]["received_txns"] > 0:
+                            total_throughput += client_throughput[clientid]["received_txns"] / client_throughput[clientid]["total_latency"]
+                    print("Total Throughput:", total_throughput)
 
-                lock.release()
-                message = ""
+                    lock.release()
+                    message = ""
                 
 
     
