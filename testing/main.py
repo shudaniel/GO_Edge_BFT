@@ -78,22 +78,22 @@ parser.add_argument("--baseline", "-b", type=int, default=0)
 args = parser.parse_args()
 
 
-clients = {
-    "0": ("127.0.0.1", 7000),  
-    "1": ("127.0.0.1", 7100), 
-    "2": ("127.0.0.1", 7200), 
-}
+# clients = {
+#     "0": ("127.0.0.1", 7000),  
+#     "1": ("127.0.0.1", 7100), 
+#     "2": ("127.0.0.1", 7200), 
+# }
 
 stats = {
     "total_latency": 0.0,
     "total_txn": 0
 }
 
-# clients = {
-#     "0": ("", 8000),  
-#     "1": ("", 8000), 
-#     "2": ("", 8000), 
-# }
+clients = {
+    "0": ("13.57.33.17", 8000),  
+    "1": ("3.131.38.108", 8000), 
+    "2": ("99.79.31.84", 8000), 
+}
 
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -125,7 +125,7 @@ with open("primaries.json", "r") as readfile:
 
 
 
-start = input("Push any key to start")
+start = input("Push any key to start\n")
 # First, send a reset signal to everyone
 # reset_msg = "RESET".encode('utf-8')
 # if os.path.exists("sample.json"):
