@@ -331,8 +331,6 @@ func main() {
 	}
 
 
-	for {
-
 
 	p := make([]byte, 2049)
     addr := net.UDPAddr{
@@ -503,5 +501,5 @@ func main() {
     // }
 	fmt.Println("Done")
 
-	}
+
 }
