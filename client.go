@@ -38,36 +38,36 @@ type Primaries struct {
 
 func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 
-	parseMessage := func(input chan string, result chan Latencies, signal chan bool) {
-		var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/]*$`) 
-		for {
-			raw_msg := <-input
-			// value = strings.Split(strings.TrimSpace(value), common.MESSAGE_DELIMITER)[1]
-			matches := isValidString.FindAllString(raw_msg, -1) 
-			for _, value := range matches {
-				if len(value) > 0{
-					// fmt.Println("received", value)
-					signal <-true
+	// parseMessage := func(input chan string, result chan Latencies, signal chan bool) {
+	// 	var isValidString = regexp.MustCompile(`^[a-zA-Z0-9_:!|.;,~/]*$`) 
+	// 	for {
+	// 		raw_msg := <-input
+	// 		// value = strings.Split(strings.TrimSpace(value), common.MESSAGE_DELIMITER)[1]
+	// 		matches := isValidString.FindAllString(raw_msg, -1) 
+	// 		for _, value := range matches {
+	// 			if len(value) > 0{
+	// 				// fmt.Println("received", value)
+	// 				signal <-true
 			
-					temp :=strings.Split(value, "|") [0]
-					components := strings.Split(temp, ",")
-					temp2, err := strconv.ParseFloat(components[0], 64)
-					if err != nil {
-						fmt.Println(err)
-					} else {
-						// fmt.Println(temp2)
-						result <- Latencies {
-							time: temp2,
-							start: components[1],
-							end: components[2],
-						}
+	// 				temp :=strings.Split(value, "|") [0]
+	// 				components := strings.Split(temp, ",")
+	// 				temp2, err := strconv.ParseFloat(components[0], 64)
+	// 				if err != nil {
+	// 					fmt.Println(err)
+	// 				} else {
+	// 					// fmt.Println(temp2)
+	// 					result <- Latencies {
+	// 						time: temp2,
+	// 						start: components[1],
+	// 						end: components[2],
+	// 					}
 					
-					}
-				}
-			}	
+	// 				}
+	// 			}
+	// 		}	
 			
-		}
-	}
+	// 	}
+	// }
 
 	// handleMessage := func(input chan string, output chan string, signal chan bool ) {
 	// 	// var isValidString = regexp.MustCompile(`^[a-zA-Z0-9.|_~]*$`).MatchString 
@@ -96,12 +96,12 @@ func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 	// 	}
 	// }
 
-	input := make(chan string, 1000)
+	// input := make(chan string, 1000)
 	// tunnel := make(chan string, 1000)
 
 	
 	// go handleMessage(input, tunnel, signal)
-	go parseMessage(input, result, signal)
+	// go parseMessage(input, result, signal)
 
 	for {
 		p := make([]byte, 55)
@@ -117,7 +117,7 @@ func handleConnection(c net.Conn, result chan Latencies, signal chan bool) {
 	}
 }
 
-func client_thread(client_id string, zone string, num_t int, txns []string, summation_ch chan Latencies, start_signal <-chan bool) {
+func client_thread(client_id string, zone string, num_t int, txns []string, summation_ch chan Latencies, start_signal <-chan bool, done_ch chan<- bool) {
 
 	
 
@@ -225,6 +225,8 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 
 	directory["local"].Close()
 	directory["global"].Close()
+
+	done_ch <- true
 }	
 
 type FinalResult struct {
@@ -329,6 +331,8 @@ func main() {
 	}
 
 
+	for {
+
 
 	p := make([]byte, 2049)
     addr := net.UDPAddr{
@@ -350,6 +354,7 @@ func main() {
 	c, err := ser.Accept()
 
 	// var remoteaddr *net.UDPAddr
+	done_ch := make(chan bool, num_c)
 	summation_ch := make(chan Latencies, num_c * num_t)
 	final_result_ch := make(chan FinalResult)
 	start_signals := make(map[int]chan bool)
@@ -463,7 +468,7 @@ func main() {
 
 	for i := 0; i < num_c; i++ {
 		client_id := strconv.Itoa(client_id_seed + i) 
-    	go client_thread( client_id, zone, num_t, strings.Split(client_txn_data[client_id], ","), summation_ch, start_signals[i])
+    	go client_thread( client_id, zone, num_t, strings.Split(client_txn_data[client_id], ","), summation_ch, start_signals[i], done_ch)
 		time.Sleep(20 * time.Millisecond)
 	}
 
@@ -474,6 +479,10 @@ func main() {
 		start_signals[h] <-true
 	}
 	// all_start = false
+
+	for h := 0; h < num_c; h++ {
+		<-done_ch
+	}
 	
 	// min_time := time.Now()
 	// for j := 0; j < num_c; j++ {
@@ -483,9 +492,9 @@ func main() {
 	// 	}
 	// }
 
-	final_sum := <-final_result_ch
-	fmt.Println("Latency:", final_sum.total_latencies)
-	fmt.Println("Num:", final_sum.num_successes)
+	// final_sum := <-final_result_ch
+	// fmt.Println("Latency:", final_sum.total_latencies)
+	// fmt.Println("Num:", final_sum.num_successes)
 
 	// message := strconv.FormatFloat(final_sum.total_latencies, 'f', 6, 64) + "|" + strconv.Itoa(final_sum.earliest) + "|" + strconv.Itoa(final_sum.latest) + "|" + strconv.Itoa(final_sum.num_successes) + "*"
 	// _,err = ser.WriteToUDP([]byte(message), remoteaddr)
@@ -493,4 +502,6 @@ func main() {
     //     fmt.Printf("Couldn't send response %v", err)
     // }
 	fmt.Println("Done")
+
+	}
 }
