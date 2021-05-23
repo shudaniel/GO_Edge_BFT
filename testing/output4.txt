@@ -1,0 +1,201 @@
+500 rate 10%
+sending TXN_DATA to ('13.52.242.39', 8000) of len 119261
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 119261
+sending TXN_DATA to ('99.79.192.186', 8000) of len 119261
+Done
+Done
+Total Latency: 52.32176243599999 |Total txn: 4537
+Total Throughput: 59037.39425433078
+Total Latency: 442.8401901199998 |Total txn: 10532
+Total Throughput: 35632.59492788247
+Total Latency: 500.7161786180001 |Total txn: 15000
+Total Throughput: 53634.23717192802
+Done
+sending TXN_DATA to ('13.52.242.39', 8000) of len 119261
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 119261
+sending TXN_DATA to ('99.79.192.186', 8000) of len 119261
+Done
+Done
+Total Latency: 56.853771760000015 |Total txn: 4537
+Total Throughput: 51903.72459928608
+Total Latency: 440.2638088440004 |Total txn: 10532
+Total Throughput: 35251.93446063129
+Total Latency: 498.9246486230007 |Total txn: 15000
+Total Throughput: 52978.83737687248
+Done
+sending TXN_DATA to ('13.52.242.39', 8000) of len 119261
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 119261
+sending TXN_DATA to ('99.79.192.186', 8000) of len 119261
+Done
+Done
+Total Latency: 388.6147529500005 |Total txn: 5995
+Total Throughput: 15287.952256884977
+Total Latency: 442.1738544270006 |Total txn: 10532
+Total Throughput: 35573.05483402609
+Total Latency: 563.1505479760001 |Total txn: 15000
+Total Throughput: 46282.86836350243
+Done
+
+400 rate 10%
+sending TXN_DATA to ('13.52.242.39', 8000) of len 94988
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 94988
+sending TXN_DATA to ('99.79.192.186', 8000) of len 94988
+Done
+Done
+Total Latency: 31.39354684500001 |Total txn: 3620
+Total Throughput: 66036.71311676425
+Total Latency: 527.9646235299995 |Total txn: 8400
+Total Throughput: 26338.232045160486
+Total Latency: 560.7445848019998 |Total txn: 12000
+Total Throughput: 42451.052823019585
+Done
+sending TXN_DATA to ('13.52.242.39', 8000) of len 94988
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 94988
+Done
+sending TXN_DATA to ('99.79.192.186', 8000) of len 94988
+Done
+Total Latency: 104.64692581700008 |Total txn: 3620
+Total Throughput: 14882.749227407465
+Total Latency: 303.81082374699986 |Total txn: 8400
+Total Throughput: 28081.30485182668
+Total Latency: 337.42884129099986 |Total txn: 12000
+Total Throughput: 48588.28233656086
+Done
+sending TXN_DATA to ('13.52.242.39', 8000) of len 94988
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 94988
+Done
+sending TXN_DATA to ('99.79.192.186', 8000) of len 94988
+Done
+Total Latency: 28.30442770999999 |Total txn: 3620
+Total Throughput: 77109.39941829832
+Total Latency: 494.1517314849996 |Total txn: 8400
+Total Throughput: 28226.398052298136
+Total Latency: 556.5988960539989 |Total txn: 12000
+Total Throughput: 38926.78692846228
+Done
+
+350 rate 10%
+sending TXN_DATA to ('13.52.242.39', 8000) of len 82854
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 82854
+Done
+sending TXN_DATA to ('99.79.192.186', 8000) of len 82854
+Done
+Total Latency: 75.558309099 |Total txn: 3175
+Total Throughput: 16534.366942859244
+Total Latency: 228.21976785699968 |Total txn: 7351
+Total Throughput: 29038.222451197504
+Total Latency: 254.3745204339996 |Total txn: 10500
+Total Throughput: 48578.5464094328
+Done
+sending TXN_DATA to ('13.52.242.39', 8000) of len 82854
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 82854
+Done
+sending TXN_DATA to ('99.79.192.186', 8000) of len 82854
+Done
+Total Latency: 379.6921907050003 |Total txn: 4176
+Total Throughput: 7662.453191819628
+Total Latency: 430.7898738510003 |Total txn: 7325
+Total Throughput: 17629.758057955172
+Total Latency: 453.58705425900035 |Total txn: 10500
+Total Throughput: 36906.88316610584
+Done
+sending TXN_DATA to ('13.52.242.39', 8000) of len 82854
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 82854
+Done
+sending TXN_DATA to ('99.79.192.186', 8000) of len 82854
+Done
+Total Latency: 150.14342819299995 |Total txn: 4176
+Total Throughput: 20030.405044217485
+Total Latency: 174.20329715299968 |Total txn: 7325
+Total Throughput: 41183.30550992671
+Total Latency: 254.13305792599968 |Total txn: 10500
+Total Throughput: 49922.85389480223
+Done
+
+300 rate 10%
+sending TXN_DATA to ('13.52.242.39', 8000) of len 70929
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 70929
+Done
+sending TXN_DATA to ('99.79.192.186', 8000) of len 70929
+Done
+Total Latency: 265.0830038699998 |Total txn: 3553
+Total Throughput: 7804.597657557149
+Total Latency: 313.33580288899975 |Total txn: 6284
+Total Throughput: 16847.304775581553
+Total Latency: 334.5623599589998 |Total txn: 9000
+Total Throughput: 32244.970309434284
+Done
+sending TXN_DATA to ('13.52.242.39', 8000) of len 70929
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 70929
+Done
+sending TXN_DATA to ('99.79.192.186', 8000) of len 70929
+Done
+Total Latency: 102.47055364699997 |Total txn: 3553
+Total Throughput: 21669.23043836955
+Total Latency: 166.03006269500003 |Total txn: 6269
+Total Throughput: 29702.246913130173
+Total Latency: 185.89913310700007 |Total txn: 9000
+Total Throughput: 50785.82011832103
+Done
+sending TXN_DATA to ('13.52.242.39', 8000) of len 70929
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 70929
+Done
+sending TXN_DATA to ('99.79.192.186', 8000) of len 70929
+Done
+Total Latency: 275.678584467 |Total txn: 3553
+Total Throughput: 7428.144716779567
+Total Latency: 293.55568858399965 |Total txn: 6269
+Total Throughput: 25433.565873829186
+Total Latency: 338.4647888119994 |Total txn: 9000
+Total Throughput: 34817.47774162824
+Done
+
+250 rate 10%
+sending TXN_DATA to ('13.52.242.39', 8000) of len 59090
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 59090
+Done
+sending TXN_DATA to ('99.79.192.186', 8000) of len 59090
+Done
+Total Latency: 71.73048338500001 |Total txn: 2963
+Total Throughput: 21699.56828777601
+Total Latency: 110.53406439000007 |Total txn: 5221
+Total Throughput: 30866.546740286954
+Total Latency: 124.45544833000017 |Total txn: 7500
+Total Throughput: 51923.65218593725
+Done
+sending TXN_DATA to ('13.52.242.39', 8000) of len 59090
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 59090
+Done
+sending TXN_DATA to ('99.79.192.186', 8000) of len 59090
+Done
+Total Latency: 27.03383464099999 |Total txn: 2279
+Total Throughput: 41429.375830680256
+Total Latency: 214.11255598799985 |Total txn: 5242
+Total Throughput: 17992.054728823772
+Total Latency: 228.0670636080001 |Total txn: 7500
+Total Throughput: 33896.070919930484
+Done
+sending TXN_DATA to ('13.52.242.39', 8000) of len 59090
+Done
+sending TXN_DATA to ('3.16.164.211', 8000) of len 59090
+Done
+sending TXN_DATA to ('99.79.192.186', 8000) of len 59090
+Done
+Total Latency: 14.216817811999997 |Total txn: 2279
+Total Throughput: 56417.67703441888
+
+200 rate 10%
