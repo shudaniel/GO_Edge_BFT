@@ -10,7 +10,7 @@ from random_txn_generator import generate_txns
 
 lock = threading.Lock()
 
-def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_throughput, do_baseline, stats):
+def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_throughput, do_baseline, stats, sem):
     global lock
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -69,6 +69,7 @@ def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_th
                     print("Total Throughput:", total_throughput)
 
                     lock.release()
+                    sem.release()
                     message = ""
                 
 
@@ -104,12 +105,16 @@ clients = {
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((args.address, args.port))
 
+semaphores = []
+
 do_baseline = args.baseline == 1
 txns_list_for_server, txns_dict_for_client, client_throughput = generate_txns(num_t = args.numtransactions, num_c = args.numclients, percent = args.percent, num_zones = len(clients.keys()), do_baseline = do_baseline)
 with open("primaries.json", "r") as readfile:
     primary_info = json.loads(readfile.read())
     for i in range(len(primary_info)):
-        threading.Thread(target=connect_to_primary, args=(args.address, args.port + i + 1, primary_info[i], txns_list_for_server, client_throughput, do_baseline, stats,)).start()
+        new_sem = threading.Semaphore(0)
+        threading.Thread(target=connect_to_primary, args=(args.address, args.port + i + 1, primary_info[i], txns_list_for_server, client_throughput, do_baseline, stats, new_sem, )).start()
+        semaphores.append(new_sem)
 #         # Connect with the primaries via tcp
 #         if not do_baseline or primary_info[i]["zone"] == "0":
 #             target_addr = (primary_info[i]["ip"], int(primary_info[i]["port"]))
@@ -171,37 +176,4 @@ latest = 0
 old_latency_total = 0
 
 for i in range(len(clients.keys())):
-    data, addr = sock.recvfrom(8196)
-    # endtime = time.time()
-    msg = data.decode()[:-1]
-    # print("Received times:", msg)
-    msg_split = msg.split("|")
-
-    # if len(msg_split) == 1:
-    #     json_data = json.loads(msg)
-    #     for clientid in json_data:
-    #         total_latency += json_data[clientid]["totallatency"]
-    #         total_txn += json_data[clientid]["numtxn"]
-    #         client_throughput[clientid]["total_latency"] += json_data[clientid]["totallatency"]
-    #         client_throughput[clientid]["received_txns"] += json_data[clientid]["numtxn"]
-        
-    #     print("Total Latency:", total_latency, "|Total txn:", total_txn)
-    #     total_throughput = 0
-    #     for clientid in client_throughput:
-    #         if client_throughput[clientid]["received_txns"] > 0:
-    #             total_throughput += client_throughput[clientid]["received_txns"] / client_throughput[clientid]["total_latency"]
-    #     print("Total Throughput:", total_throughput)
-
-    # else:
-
-    old_latency_total += float(msg_split[0])
-    print("Total Latency (old):", old_latency_total)
-        # # start_time = float(msg_split[1])
-        # # print("Value from before:", endtime - start_time)
-        # end = int(msg_split[2])/1000000000
-        # start = int(msg_split[1])/1000000000
-        # if end > latest:
-        #     latest = end
-        # if earliest == 0 or start < earliest:
-        #     earliest = start
-        # print("Total time:", latest - earliest)
+    semaphores[i].acquire()
