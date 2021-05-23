@@ -1,5 +1,6 @@
 # This file signals all the client threads in the different zones to start and also to collect all the total times
 import socket
+import sys
 import time
 import os
 import json
@@ -70,6 +71,7 @@ def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_th
 
                     lock.release()
                     sem.release()
+                    return
                     message = ""
                 
 
@@ -177,3 +179,5 @@ old_latency_total = 0
 
 for i in range(len(clients.keys())):
     semaphores[i].acquire()
+print("Done")
+sys.exit(0)
