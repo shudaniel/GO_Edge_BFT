@@ -170,7 +170,7 @@ latest = 0
 
 old_latency_total = 0
 
-while True:
+for i in range(len(clients.keys())):
     data, addr = sock.recvfrom(8196)
     # endtime = time.time()
     msg = data.decode()[:-1]
