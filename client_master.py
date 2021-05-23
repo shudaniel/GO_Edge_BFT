@@ -1,8 +1,6 @@
 import argparse
 import subprocess
-import socket
 import shlex
-import json
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--address", "-a", default="127.0.0.1")
