@@ -13,7 +13,7 @@ args = parser.parse_args()
 # Spawn processes
 while True:
     # command = "python3 client.py -z " + zone + " -i " + clientid + " -t " + str(numtransactions) + " -r " + str(percent)
-    command = "go run ../client.go -a " + args.address + " -p " + args.port 
+    command = "go run client.go -a " + args.address + " -p " + args.port 
     cmd_split = shlex.split(command)
     proc = subprocess.Popen(cmd_split)
     proc.wait()
