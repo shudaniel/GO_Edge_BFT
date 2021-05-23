@@ -26,7 +26,7 @@ var lock_mutex = &sync.Mutex{}
 var isValidString = regexp.MustCompile(`[a-zA-Z0-9_:!|.;,~/{}"\[\] ]*`) 
 
 type IncomingTCPMessage struct {
-	Msg []byte
+	Msg string
 	outbox chan string
 }
 
@@ -426,7 +426,7 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 	fmt.Printf("Serving %s\n", c.RemoteAddr().String())
 
 	// On connect, send a JOIN message
-	join_msg := n.createJoinMessage(false) + "|" + common.MESSAGE_ENDER 
+	join_msg := n.createJoinMessage(false) + "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
 	c.Write([]byte(join_msg))
 
 
@@ -441,26 +441,30 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 
 	parseMessage := func(n *node, inbox chan IncomingTCPMessage ) {
 		var received_data IncomingTCPMessage
-		message := ""
+		// message := ""
 		for {
 			received_data = <- inbox
-			value := string(received_data.Msg)
+			// value := string(received_data.Msg)
+			value := received_data.Msg
 			if common.VERBOSE && common.VERBOSE_EXTRA {
 				fmt.Println("Raw Received", value)
 			}
-			matches := isValidString.FindAllString(value, -1)
-			for _, v := range matches {
-				if len(v) > 0 {
-					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
-					if v[len(v)-1:] == common.MESSAGE_ENDER {
-						go n.handleTCPMessage(message + v, received_data.outbox)
-						message = ""
-					} else {
-						message = message + v
-					}
+			// if value[len(value)-1:] == common.MESSAGE_ENDER {
+			go n.handleTCPMessage(value, received_data.outbox)
+			// }
+			// matches := isValidString.FindAllString(value, -1)
+			// for _, v := range matches {
+			// 	if len(v) > 0 {
+			// 		// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
+			// 		if v[len(v)-1:] == common.MESSAGE_ENDER {
+			// 			go n.handleTCPMessage(message + v, received_data.outbox)
+			// 			message = ""
+			// 		} else {
+			// 			message = message + v
+			// 		}
 					
-				}
-			}
+			// 	}
+			// }
 			
 			
 			
@@ -478,10 +482,12 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 
 	inbox := make(chan IncomingTCPMessage, common.MAX_CHANNEL_SIZE)
 	go parseMessage(n,inbox)	
+
+	reader := bufio.NewReader(c)
 	
 	for {
-			p := make([]byte, 1024)
-			_, err := c.Read(p)
+			// p := make([]byte, 1024)
+			p, err := reader.ReadString('*')
 			if err != nil {
 				if err.Error() == "EOF" {
 					// fmt.Println("EOF detected")

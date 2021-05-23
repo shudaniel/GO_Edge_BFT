@@ -84,22 +84,22 @@ parser.add_argument("--baseline", "-b", type=int, default=0)
 args = parser.parse_args()
 
 
-# clients = {
-#     "0": ("127.0.0.1", 7000),  
-#     "1": ("127.0.0.1", 7100), 
-#     "2": ("127.0.0.1", 7200), 
-# }
+clients = {
+    "0": ("127.0.0.1", 7000),  
+    # "1": ("127.0.0.1", 7100), 
+    # "2": ("127.0.0.1", 7200), 
+}
 
 stats = {
     "total_latency": 0.0,
     "total_txn": 0
 }
 
-clients = {
-    "0": ("54.241.99.239", 8000),  
-    "1": ("3.138.116.243", 8000), 
-    "2": ("35.182.100.47", 8000), 
-}
+# clients = {
+#     "0": ("54.241.99.239", 8000),  
+#     "1": ("3.138.116.243", 8000), 
+#     "2": ("35.182.100.47", 8000), 
+# }
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((args.address, args.port))

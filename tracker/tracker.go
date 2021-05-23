@@ -8,7 +8,7 @@ import (
 
 type TimeTracker struct {
 	ReceivedNumTxns int `json:"numtxn"`
-	TotalLatencies float64`json:"totallatency"`
+	TotalLatencies float64 `json:"totallatency"`
 
 }
 

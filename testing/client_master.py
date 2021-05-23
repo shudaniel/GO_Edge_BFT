@@ -75,7 +75,7 @@ for i in range(len(returns)):
     times_sum += latency
 
 # Send back the result
-final_msg = str(times_sum) + "|" + str(starttime) + "|" + str(endtime) + "|" + str(total) + "|*"
+final_msg = str(times_sum) + "|" + str(starttime) + "|" + str(endtime) + "|" + str(total) + "|~*"
 print(final_msg)
 sock.sendto(final_msg.encode('utf-8'), addr)
 
