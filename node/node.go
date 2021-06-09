@@ -49,6 +49,7 @@ type node struct {
 	my_addr           string
 	directory		  map[string]map[string]chan string
 	pbft_state        *pbft.PbftState
+	pbft_global_state        *pbft.PbftGlobalState
 	endorse_state        *endorsement.EndorsementState
 	paxos_state        *paxos.PaxosState
 	sock              *net.UDPConn
@@ -59,7 +60,7 @@ type node struct {
 	outboxUDP            chan OutgoingUDPMessage
 	endorse_signals           map[string]chan string
 	pbft_signals           map[string]chan bool
-	paxos_signals           map[string]chan bool
+	global_signals           map[string]chan bool
 	public_keys            map[string]*rsa.PublicKey
 	private_key            *rsa.PrivateKey
 	client_list map[string]bool
@@ -79,6 +80,7 @@ func NewNode(ip string, port int, z string, f int) *node {
 		my_addr:            ip + ":" + strconv.Itoa(port),
 		directory:           make(map[string]map[string]chan string),
 		pbft_state:          pbft.NewPbftState(f),
+		pbft_global_state:          pbft.NewPbftGlobalState(f),
 		endorse_state:       endorsement.NewEndorseState(f),
 		paxos_state:          paxos.NewPaxosState(),
 		zone:				 z,
@@ -90,7 +92,7 @@ func NewNode(ip string, port int, z string, f int) *node {
 		public_keys:         make(map[string]*rsa.PublicKey),
 		endorse_signals:             make(map[string]chan string),
 		pbft_signals:             make(map[string]chan bool),
-		paxos_signals:             make(map[string]chan bool),
+		global_signals:             make(map[string]chan bool),
 		txn_input: make(chan CompletedTxn, common.MAX_CHANNEL_SIZE),
 		client_list: make(map[string]bool),
 	}
@@ -107,7 +109,7 @@ func (n *node) reset() {
 
 	n.endorse_signals = make(map[string]chan string)
 	n.pbft_signals = make(map[string]chan bool)
-	n.paxos_signals = make(map[string]chan bool)
+	n.global_signals = make(map[string]chan bool)
 
 }
 
@@ -247,10 +249,11 @@ func (n *node) handleClientJoin(startingid int, zone string, num_c int) {
 			n.client_list[clientid] = false
 		}
 		n.pbft_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
-		n.paxos_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
+		n.global_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
 		n.endorse_signals[clientid] = make(chan string, common.MAX_CHANNEL_SIZE)
 		fmt.Printf("Client locks created: %s\n", zone)
 		n.pbft_state.Initialize(clientid)
+		n.pbft_global_state.Initialize(clientid)
 		n.endorse_state.Initialize(clientid)
 		n.paxos_state.Initialize(clientid)
 		lock_mutex.Unlock()
@@ -278,13 +281,25 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 		
 	} else {
 		txn_type = "g"
-		go func(message string, id string, zone string, client_id string, ch <-chan bool, broadcast func(string), localbroadcast func(string), endorse_signals map[string]chan string, state *endorsement.EndorsementState, result chan bool) {
+		if common.GLOBAL_TYPE == "PBFT" {
+			go func(message string, id string, client_id string, zone string, ch chan bool, broadcast func(string), result chan bool) {
 
-			success := n.paxos_state.Run(message, id, zone, client_id, ch, broadcast, localbroadcast, endorse_signals, state)
-			result <- success
+				success := n.pbft_global_state.Run(message, id, client_id, zone, ch , broadcast)
+				result <- success
 
-		} (message, n.id, n.zone, client_id, n.paxos_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state, ch)
+			} (message, n.id, client_id, n.zone,  n.pbft_signals[client_id] ,n.broadcastEveryone, ch)
+
+		} else {
+
+		
+			go func(message string, id string, zone string, client_id string, ch <-chan bool, broadcast func(string), localbroadcast func(string), endorse_signals map[string]chan string, state *endorsement.EndorsementState, result chan bool) {
+				
+				success := n.paxos_state.Run(message, id, zone, client_id, ch, broadcast, localbroadcast, endorse_signals, state)
+				result <- success
+
+			} (message, n.id, n.zone, client_id, n.global_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state, ch)
 		// fmt.Println("%s not is in client list", client_id)
+		}
 	}
 	select {
     case <-ch:
@@ -313,12 +328,26 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 func (n *node) broadcastInterzonal(message string) {
 	for zone, _ := range n.directory {
 		if zone != n.zone {
-			for _, outbox := range n.directory[zone] {
+			for nodeid, outbox := range n.directory[zone] {
+				if nodeid != n.id {
+					n.sendTCPResponse(message, outbox)
+					break
+				}
+			}
+		}
+
+	}
+}
+
+func (n *node) broadcastEveryone(message string) {
+	// Broadcast a message to everyone
+	for zone, _ := range n.directory {
+		for nodeid, outbox := range n.directory[zone] {
+			if nodeid != n.id {
 				n.sendTCPResponse(message, outbox)
 				break
 			}
 		}
-
 	}
 }
 
@@ -340,7 +369,7 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 		n.endorse_state.HandleMessage(endorse_msg, n.broadcastToZone, n.sendToNode, n.zone, n.id, n.endorse_signals, n.public_keys, n.private_key)
 	case "PAXOS":
 		paxos_msg := components[1]
-		n.paxos_state.HandleMessage(paxos_msg, n.broadcastInterzonal, n.broadcastToZone, n.sendToNode, n.id, n.paxos_signals, n.endorse_signals, n.endorse_state)
+		n.paxos_state.HandleMessage(paxos_msg, n.broadcastInterzonal, n.broadcastToZone, n.sendToNode, n.id, n.global_signals, n.endorse_signals, n.endorse_state)
 	case "SHARE":
 		paxos_msg := components[1]
 		n.paxos_state.HandleShareMessage(paxos_msg)
@@ -348,6 +377,11 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 		clientid := components[1]
 		pbft_msg := components[2]
 		n.pbft_state.HandleMessage(pbft_msg, n.broadcastToZone ,n.id, clientid, n.pbft_signals[clientid])
+	case "PBFT_GLOBAL":
+		clientid := components[1]
+		senderzone := components[2]
+		pbft_msg := components[3]
+		n.pbft_global_state.HandleMessage(pbft_msg, n.broadcastEveryone, n.id, clientid, n.zone, senderzone, n.global_signals[clientid])
 	case "TXN_DATA":
 		txn_json_data := components[1]
 		go n.RunClientTracker(n.zone, txn_json_data, outbox)

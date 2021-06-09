@@ -7,6 +7,9 @@ const (
 	MAX_CHANNEL_SIZE = 5000
 	MESSAGE_ENDER = "~"
 	MESSAGE_DELIMITER = "*"
+
+	GLOBAL_TYPE = "PBFT"  // Determine what type of global synchronizatoin is being run
+
 	VERBOSE = false   // Only print received messages, sent messages, and timeouts
 	VERBOSE_EXTRA = false // Print additional information. VERBOSE must also be true or this does nothing
 
