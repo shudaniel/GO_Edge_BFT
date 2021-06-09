@@ -264,7 +264,7 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 	components := strings.Split(message, "!")
 	client_id := components[0]
 
-	ch := make(chan bool)
+	results := make(chan bool)
 	txn_type := "l"
 
 	total_time := 0.0
@@ -277,7 +277,7 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 			success := n.pbft_state.Run(message, id, client_id,  ch , broadcast)
 			result <- success
 
-		} (message, n.id, client_id,  n.pbft_signals[client_id] ,n.broadcastToZone, ch)
+		} (message, n.id, client_id,  n.pbft_signals[client_id] ,n.broadcastToZone, results)
 		
 	} else {
 		txn_type = "g"
@@ -287,7 +287,7 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 				success := n.pbft_global_state.Run(message, id, client_id, zone, ch , broadcast)
 				result <- success
 
-			} (message, n.id, client_id, n.zone,  n.pbft_signals[client_id] ,n.broadcastEveryone, ch)
+			} (message, n.id, client_id, n.zone,  n.global_signals[client_id] ,n.broadcastEveryone, results)
 
 		} else {
 
@@ -297,12 +297,12 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 				success := n.paxos_state.Run(message, id, zone, client_id, ch, broadcast, localbroadcast, endorse_signals, state)
 				result <- success
 
-			} (message, n.id, n.zone, client_id, n.global_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state, ch)
+			} (message, n.id, n.zone, client_id, n.global_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state, results)
 		// fmt.Println("%s not is in client list", client_id)
 		}
 	}
 	select {
-    case <-ch:
+    case <-results:
 		end = time.Now()
 		difference := end.Sub(start)
 		total_time = difference.Seconds() 
@@ -328,11 +328,11 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 func (n *node) broadcastInterzonal(message string) {
 	for zone, _ := range n.directory {
 		if zone != n.zone {
-			for nodeid, outbox := range n.directory[zone] {
-				if nodeid != n.id {
-					n.sendTCPResponse(message, outbox)
-					break
-				}
+			for _, outbox := range n.directory[zone] {
+				
+				n.sendTCPResponse(message, outbox)
+				break
+				
 			}
 		}
 
@@ -342,11 +342,10 @@ func (n *node) broadcastInterzonal(message string) {
 func (n *node) broadcastEveryone(message string) {
 	// Broadcast a message to everyone
 	for zone, _ := range n.directory {
-		for nodeid, outbox := range n.directory[zone] {
-			if nodeid != n.id {
-				n.sendTCPResponse(message, outbox)
-				break
-			}
+		for _, outbox := range n.directory[zone] {
+			
+			n.sendTCPResponse(message, outbox)
+			
 		}
 	}
 }

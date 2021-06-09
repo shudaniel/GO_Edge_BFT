@@ -2,7 +2,7 @@ package common
 
 
 const (
-	TIMEOUT = 4
+	TIMEOUT = 3
 	MAJORITY = 2
 	MAX_CHANNEL_SIZE = 5000
 	MESSAGE_ENDER = "~"

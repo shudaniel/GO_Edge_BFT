@@ -69,7 +69,6 @@ func (state *PbftGlobalState) Initialize(clientid string ) {
 
 	state.counter_prepare[clientid] = &newPrepareCounter
 	state.counter_commit[clientid] = &newCommitCounter
-	// fmt.Println("initialize pbft")
 	state.locks[clientid + "PREPARE"] = &sync.Mutex{}
 	state.locks[clientid + "COMMIT"] = &sync.Mutex{}
 }
@@ -86,6 +85,9 @@ func (state *PbftGlobalState) Run(
 	seq_num, _ := strconv.Atoi( strings.Split(message, "!")[1] )
 	preprepare_msg := create_global_pbft_message(clientid, id, zone, "PRE_PREPARE",  message)
 
+	state.counter_prepare[clientid].Count["0"] = 0
+	state.counter_prepare[clientid].Count["1"] = 0
+	state.counter_prepare[clientid].Count["2"] = 0
 	state.counter_prepare[clientid].Count[zone] = 1
 	state.counter_prepare[clientid].Seq = seq_num
 	// state.counter_prepare.Store(message + "PREPARE", 1)
@@ -142,6 +144,9 @@ func (state *PbftGlobalState) HandleMessage(
 			state.counter_prepare[clientid].Count[my_zone] += 1
 		} else {
 			state.counter_prepare[clientid].Seq = seq_num
+			state.counter_prepare[clientid].Count["0"] = 0
+			state.counter_prepare[clientid].Count["1"] = 0
+			state.counter_prepare[clientid].Count["2"] = 0
 			state.counter_prepare[clientid].Count[my_zone] = 1
 		}
 
@@ -158,6 +163,9 @@ func (state *PbftGlobalState) HandleMessage(
 			state.counter_prepare[clientid].Count[sender_zone] += 1
 		} else {
 			state.counter_prepare[clientid].Seq = seq_num
+			state.counter_prepare[clientid].Count["0"] = 0
+			state.counter_prepare[clientid].Count["1"] = 0
+			state.counter_prepare[clientid].Count["2"] = 0
 			state.counter_prepare[clientid].Count[sender_zone] = 1
 		}
 		
@@ -200,7 +208,14 @@ func (state *PbftGlobalState) HandleMessage(
 			state.counter_commit[clientid].Count[sender_zone] += 1
 		} else {
 			state.counter_commit[clientid].Seq = seq_num
+			state.counter_commit[clientid].Count["0"] = 0
+			state.counter_commit[clientid].Count["1"] = 0
+			state.counter_commit[clientid].Count["2"] = 0
 			state.counter_commit[clientid].Count[sender_zone] = 1
+		}
+
+		if common.VERBOSE {
+			fmt.Printf("COMMIT_COUNT key: %s : 0: %v, 1: %v, 2: %v\n", message_val, state.counter_commit[clientid].Count["0"], state.counter_commit[clientid].Count["1"], state.counter_commit[clientid].Count["2"])
 		}
 		// interf, _ := state.counter_commit.LoadOrStore(message_val + "COMMIT", 0)
 		// count := interf.(int)
@@ -208,6 +223,10 @@ func (state *PbftGlobalState) HandleMessage(
 			state.counter_commit[clientid].Count["0"] = -30
 			state.counter_commit[clientid].Count["1"] = -30
 			state.counter_commit[clientid].Count["2"] = -30
+
+			if common.VERBOSE {
+				fmt.Printf("%s has been committed\n", message_val)
+			}
 			// state.counter_commit.Store(message_val + "COMMIT", -30)
 			// Value has been committed
 			state.locks[commit_key].Unlock()
