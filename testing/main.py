@@ -64,10 +64,12 @@ def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_th
                         client_throughput[clientid]["received_txns"] += json_data[clientid]["numtxn"]
                     print("Total Latency:", stats["total_latency"], "|Total txn:", stats["total_txn"])
                     total_throughput = 0
+                    total_clients = 0
                     for clientid in client_throughput:
                         if client_throughput[clientid]["received_txns"] > 0:
+                            total_clients += 1
                             total_throughput += client_throughput[clientid]["received_txns"] / client_throughput[clientid]["total_latency"]
-                    print("Total Throughput:", total_throughput)
+                    print("Total Throughput:", total_throughput, "|Total Clients:", total_clients)
 
                     lock.release()
                     sem.release()
