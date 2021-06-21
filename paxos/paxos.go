@@ -72,7 +72,7 @@ func (state *PaxosState) Run(
 	state.counter[clientid].Count = 1
 	state.counter[clientid].Seq = seq_num
 	
-	go broadcast( "PAXOS|" + preprepare_msg + "/" + signatures )
+	broadcast( "PAXOS|" + preprepare_msg + "/" + signatures )
 	committed := <-ch
 	if !committed {
 		fmt.Println("Paxos failed???")
