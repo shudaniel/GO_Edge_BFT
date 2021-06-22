@@ -72,7 +72,8 @@ def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_th
                             total_throughput += client_throughput[clientid]["received_txns"] / client_throughput[clientid]["total_latency"]
                     print("Total Throughput:", total_throughput, "|Total Clients:", total_clients)
                     with open('output.txt', 'wt') as out:
-                        print("Total Throughput:", total_throughput, file=out)
+                        print("Total Latency:", stats["total_latency"], "|Total txn:", stats["total_txn"], file=out)
+                        print("Total Throughput:", total_throughput, "|Total Clients:", total_clients, file=out)
                         pprint(client_throughput, stream=out)
 
                     lock.release()
