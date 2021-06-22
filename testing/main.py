@@ -8,6 +8,7 @@ import argparse
 import threading
 import re
 from random_txn_generator import generate_txns
+from pprint import pprint
 
 lock = threading.Lock()
 
@@ -70,6 +71,9 @@ def connect_to_primary(addr, port, primary_info, txns_list_for_server, client_th
                             total_clients += 1
                             total_throughput += client_throughput[clientid]["received_txns"] / client_throughput[clientid]["total_latency"]
                     print("Total Throughput:", total_throughput, "|Total Clients:", total_clients)
+                    with open('output.txt', 'wt') as out:
+                        print("Total Throughput:", total_throughput, file=out)
+                        pprint(client_throughput, stream=out)
 
                     lock.release()
                     sem.release()
