@@ -181,7 +181,7 @@ func (n *node) udpHandlerRoutine() {
 			for _, v := range matches {
 				if len(v) > 0  {
 					// Check if the end of the message is "end." Otherwise this is a partial message and you must wait for the rest
-					if v[len(value)-1:] == common.MESSAGE_ENDER {
+					if v[len(v)-1:] == common.MESSAGE_ENDER {
 						go n.handleUDPMessage(message + v, received_data.Address)
 						message = ""
 					} else {
