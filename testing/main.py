@@ -108,7 +108,7 @@ stats = {
 clients = {
     "0": ("52.53.152.152", 8000),  
     "1": ("18.118.153.185", 8000), 
-    "2": ("", 8000), 
+    "2": ("3.96.211.58", 8000), 
 }
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
