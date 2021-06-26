@@ -100,10 +100,22 @@ func (state *PbftGlobalState) Run(
 func (state *PbftGlobalState) HasQuorum(clientid string, msg_type string) bool {
 	threshold := (2 * state.failures) + 1
 	if msg_type == "PREPARE" {
-		return state.counter_prepare[clientid].Count["0"] >= threshold && state.counter_prepare[clientid].Count["1"] >= threshold && state.counter_prepare[clientid].Count["2"] >= threshold
+		for _, v := range state.counter_prepare[clientid].Count { 
+			if v < threshold {
+				return false
+			}
+		}
+
+		// return state.counter_prepare[clientid].Count["0"] >= threshold && state.counter_prepare[clientid].Count["1"] >= threshold && state.counter_prepare[clientid].Count["2"] >= threshold
 	} else {
-		return state.counter_commit[clientid].Count["0"] >= threshold && state.counter_commit[clientid].Count["1"] >= threshold && state.counter_commit[clientid].Count["2"] >= threshold
+		for _, v := range state.counter_commit[clientid].Count { 
+			if v < threshold {
+				return false
+			}
+		}
+		// return state.counter_commit[clientid].Count["0"] >= threshold && state.counter_commit[clientid].Count["1"] >= threshold && state.counter_commit[clientid].Count["2"] >= threshold
 	}
+	return true
 }
 
 func (state *PbftGlobalState) HandleMessage(
