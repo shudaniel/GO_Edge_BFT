@@ -3,7 +3,6 @@ package common
 
 const (
 	TIMEOUT = 3
-	MAJORITY = 2
 	MAX_CHANNEL_SIZE = 5000
 	MESSAGE_ENDER = "~"
 	MESSAGE_DELIMITER = "*"
@@ -14,6 +13,8 @@ const (
 	VERBOSE = false   // Only print received messages, sent messages, and timeouts
 	VERBOSE_EXTRA = false // Print additional information. VERBOSE must also be true or this does nothing
 
+
+	MAJORITY = 3
 )
 
 type Counter struct {
