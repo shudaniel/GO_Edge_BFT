@@ -14,7 +14,7 @@ const (
 	VERBOSE_EXTRA = false // Print additional information. VERBOSE must also be true or this does nothing
 
 
-	MAJORITY = 3
+	MAJORITY = 4
 )
 
 type Counter struct {
