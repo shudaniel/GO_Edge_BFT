@@ -46,6 +46,10 @@ func (state *PbftGlobalState) GetF() int {
 	return state.failures
 }
 
+func (state *PbftGlobalState) HandleShareMessage(message string) {
+	// This is a message that the leader has processed and is sharing with you
+
+}
 
 func (state *PbftGlobalState) Initialize(clientid string ) {
 	newPrepareCounter := Counter {
