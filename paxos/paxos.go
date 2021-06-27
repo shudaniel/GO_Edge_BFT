@@ -44,10 +44,6 @@ func (state *PaxosState) Initialize(clientid string ) {
 	state.locks[clientid + "ACCEPTACK"] = &sync.Mutex{}
 }
 
-func (state *PaxosState) LeaderElection() {
-	
-}
-
 
 func (state *PaxosState) Run(
 	message string, 

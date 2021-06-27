@@ -370,13 +370,8 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 		paxos_msg := components[1]
 		n.paxos_state.HandleMessage(paxos_msg, n.broadcastInterzonal, n.broadcastToZone, n.sendToNode, n.id, n.global_signals, n.endorse_signals, n.endorse_state)
 	case "SHARE":
-		shared_msg := components[1]
-		if common.GLOBAL_TYPE == "PBFT" { 
-			n.pbft_global_state.HandleShareMessage(shared_msg)
-		} else {
-			n.paxos_state.HandleShareMessage(shared_msg)			
-		}
-
+		paxos_msg := components[1]
+		n.paxos_state.HandleShareMessage(paxos_msg)
 	case "PBFT":
 		clientid := components[1]
 		pbft_msg := components[2]
