@@ -127,7 +127,7 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 
 	// Make a map to use either your zone primmary or primary 0
 	directory := make(map[string]net.Conn)
-	signal := make(chan bool)
+	// signal := make(chan bool)
 	for j := 0; j < len(addresses); j++ {
 		// if addresses[j].Zone == zone {
 		// 	conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
@@ -153,7 +153,7 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 		_, err = conn2.Read(p)
 		// fmt.Println("Received:", string(p))
 
-		go handleConnection(conn2, summation_ch, signal)
+		// go handleConnection(conn2, summation_ch, signal)
 		// }
 	}
 
@@ -166,13 +166,15 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 
 	// client_starttime := time.Now()
 	previous_zone := "-1"
+	p := make([]byte, 1024)
 	for i := 0; i < num_t; i++ {
 		// p :=  make([]byte, 512)
 		i_str := strconv.Itoa(i)
 		txn_type := txns[i][0:1]
 		client_request := common.MESSAGE_DELIMITER + "CLIENT_REQUEST|" + client_id + "!" + i_str + "!10" 
 		// start := time.Now()
-		// fmt.Println("sending:", i, client_id)
+		fmt.Println("Starting :" + client_id + "!" + i_str + "!10")
+		// start := time.Now())
 		if txn_type == "g" {
 			global_zone := txns[i][1:2]
 			if previous_zone != global_zone {
@@ -212,7 +214,9 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 			// fmt.Println("Received", string(p), "l")
 			previous_zone = zone
 		}
-		<-signal
+		directory[zone].Read(p)
+		fmt.Println("Done:", string(p))
+		// <-signal
 		// fmt.Println("Signal received to start next", client_id)
 		
 	// 	temp := (strings.Split(string( p ), "*"))[1]

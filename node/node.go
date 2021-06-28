@@ -48,6 +48,7 @@ type CompletedTxn struct {
 type node struct {
 	my_addr           string
 	directory		  map[string]map[string]chan string
+	client_locks             map[string]*sync.Mutex
 	pbft_state        *pbft.PbftState
 	pbft_global_state        *pbft.PbftGlobalState
 	endorse_state        *endorsement.EndorsementState
@@ -76,7 +77,7 @@ func NewNode(ip string, port int, z string, f int) *node {
 
 
 	newNode := node{
-
+		client_locks:             make(map[string]*sync.Mutex),
 		my_addr:            ip + ":" + strconv.Itoa(port),
 		directory:           make(map[string]map[string]chan string),
 		pbft_state:          pbft.NewPbftState(f),
@@ -244,6 +245,7 @@ func (n *node) handleClientJoin(startingid int, zone string, num_c int) {
 	for i := 0; i < num_c; i++ {
 		clientid := strconv.Itoa(startingid + i)
 		lock_mutex.Lock()
+		n.client_locks[clientid] = &sync.Mutex{}
 		// if n.zone == zone {
 		// 	fmt.Printf("Client joining: %s\n", clientid)
 		// 	n.client_list[clientid] = true
@@ -299,6 +301,7 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 				// If a leader election is needed, the end of the message is marked by an L
 
 				run_leader_election := txn_type == "G"
+				run_leader_election = true
 				// if run_leader_election {
 				// 	fmt.Println("LEADER ELECTION")
 				// }
@@ -327,8 +330,10 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 		fmt.Println("TIMEOUT on", message, txn_type)
 		
     }
-	
-	n.sendTCPResponse(fmt.Sprintf("%f,%d,%d", total_time, start.UnixNano(), end.UnixNano()), outbox)
+	// n.client_locks[client_id].Lock()
+	// n.paxos_state.Initialize(client_id)
+	// n.client_locks[client_id].Unlock()
+	n.sendTCPResponse(message, outbox)
 	// fmt.Println("Total time: %d", total_time)
 
 }
@@ -487,9 +492,9 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 			received_data = <- inbox
 			// value := string(received_data.Msg)
 			value := received_data.Msg
-			if common.VERBOSE && common.VERBOSE_EXTRA {
-				fmt.Println("Raw Received", value)
-			}
+			// if common.VERBOSE && common.VERBOSE_EXTRA {
+			// 	fmt.Println("Raw Received", value)
+			// }
 			// if value[len(value)-1:] == common.MESSAGE_ENDER {
 			go n.handleTCPMessage(value, received_data.outbox)
 			// }

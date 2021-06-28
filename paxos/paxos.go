@@ -13,7 +13,7 @@ type PaxosState struct {
 	votes             map[string]*common.Counter
 	votesignal        map[string]chan bool
 	counter           map[string]*common.Counter
-
+	acceptsignal        map[string]chan bool
 	locks             map[string]*sync.Mutex
 
 	majority          int
@@ -29,7 +29,8 @@ func NewPaxosState() *PaxosState {
 	newState := PaxosState{
 		counter:           make(map[string]*common.Counter),
 		votes:  make(map[string]*common.Counter),
-		votesignal: make(map[string]chan bool),
+		votesignal: make(map[string]chan bool, 10),
+		acceptsignal: make(map[string] chan bool),
 		locks:             make(map[string]*sync.Mutex),
 		majority:          0,
 		//localLog:          make([]common.Message, 0),
@@ -44,6 +45,7 @@ func (state *PaxosState) majorityAchieved(count int) bool {
 
 func (state *PaxosState) SetMajority(m int) {
 	state.majority = m
+	fmt.Println("New majority is", m)
 }
 
 func (state *PaxosState) Initialize(clientid string ) {
@@ -59,6 +61,7 @@ func (state *PaxosState) Initialize(clientid string ) {
 
 	state.counter[clientid] = &newCounter
 	state.votesignal[clientid] = make(chan bool)
+	state.acceptsignal[clientid] = make(chan bool)
 	state.votes[clientid] = &newVoteCount
 	state.locks[clientid + "ACCEPTACK"] = &sync.Mutex{}
 }
@@ -79,6 +82,7 @@ func (state *PaxosState) RunLeaderElection(
 	electionmsg := create_paxos_message(id, "LEADERELECTION_VOTE", message_val, clientid, zone)
 	signatures := e_state.Run( electionmsg, seq_num, id, clientid, endorsement_signals[clientid], localbroadcast )
 	state.votes[clientid].Count = 1
+	state.votes[clientid].Seq = seq_num
 	broadcast( "PAXOS|" + electionmsg + "/" + signatures  )
 	// Wait for everyone to vote for you
 	<-state.votesignal[clientid]
@@ -117,21 +121,27 @@ func (state *PaxosState) Run(
 	// Get endorsement for this message
 	// Do not send message to yourself. Just ack it immediately
 	state.counter[clientid].Count = 1
-	state.counter[clientid].Seq = seq_num
+	state.counter[clientid].Seq = seq_num + 1
 	
 	broadcast( "PAXOS|" + preprepare_msg + "/" + signatures )
-	committed := <-ch
+	// committed := <-ch
+	committed := <-state.acceptsignal[clientid]
+
+	if common.VERBOSE && common.VERBOSE_EXTRA {
+		fmt.Printf("Finished paxos %s\n", message)
+	}
+
+
 	if !committed {
-		fmt.Println("Paxos failed???")
+		fmt.Println("Paxos failed???", message)
 	}
 
 	if common.VERBOSE && common.VERBOSE_EXTRA {
-		fmt.Println("Paxos succeeded")
+		fmt.Println("Paxos succeeded", message)
 	}
 
-	return committed
-	
 	return true
+	
 }
 
 func (state *PaxosState) HandleShareMessage(message string) {
@@ -158,10 +168,9 @@ func (state *PaxosState) HandleMessage(
 	message_val := components[4]
 
 	// fmt.Println("MESSAGE VAL", message_val)
-	seq_num, _ := strconv.Atoi( strings.Split(message_val, "!")[1] )
+	seq_num, _ := strconv.Atoi( strings.Split(message_val, "!")[1] ) 
+	seq_num = 3 * seq_num 
 	// fmt.Println("MESSAGE VAL seq_num", seq_num)
-
-	seq_num = 3 * seq_num + 1
 
 	acceptack_key := clientid + "ACCEPTACK"
 
@@ -172,15 +181,17 @@ func (state *PaxosState) HandleMessage(
 
 	case "ACCEPT":
 		s := create_paxos_message(id, "ACCEPTACK", message_val, clientid, zone)
-		signatures := e_state.Run(s, seq_num, id, clientid, endorsement_signals[clientid], localbroadcast)
+		signatures := e_state.Run(s, seq_num + 1, id, clientid, endorsement_signals[clientid], localbroadcast)
 	
 		go sendMessage("PAXOS|" + s + "/" + signatures, sender_id,zone)
 		
 	case "ACCEPTACK":
 		state.locks[acceptack_key].Lock()
-
+		seq_num += 1
 		if seq_num < state.counter[clientid].Seq  {
 			state.locks[acceptack_key].Unlock()
+			// fmt.Printf("Bad paxos seq num for %s, %s < %s \n", message, seq_num, state.counter[clientid].Seq)
+						
 			return
 		} else if seq_num == state.counter[clientid].Seq {
 			state.counter[clientid].Count += 1
@@ -191,6 +202,9 @@ func (state *PaxosState) HandleMessage(
 		// interf, _ := state.counter.LoadOrStore(message_val, 0)
 		// count := interf.(int) 
 		if state.majorityAchieved(state.counter[clientid].Count) {
+			if common.VERBOSE && common.VERBOSE_EXTRA {
+				fmt.Printf("AcceptAck quorum for %s\n", message)
+			}
 			state.counter[clientid].Count = -30
 			state.locks[acceptack_key].Unlock()
 			s := create_paxos_message(id, "PAXOS_COMMIT", message_val, clientid, zone)
@@ -211,7 +225,9 @@ func (state *PaxosState) HandleMessage(
 			// 	fmt.Printf("AcceptAck quorum for %s\n", message)
 			// }
 			// <-new_chan
-			signals[clientid] <- true
+
+			// signals[clientid] <- true
+			state.acceptsignal[clientid] <- true
 		} else {
 			// state.counter.Store(message_val, count + 1)
 			state.locks[acceptack_key].Unlock()
@@ -221,19 +237,36 @@ func (state *PaxosState) HandleMessage(
 		// Take value and commit it to the log
 	case "LEADERELECTION_VOTE":
 		s := create_paxos_message(id, "LEADERELECTION_REPLY", message_val, clientid, zone)
-		signatures := e_state.Run(s, seq_num - 1, id, clientid, endorsement_signals[clientid], localbroadcast)
+		signatures := e_state.Run(s, seq_num, id, clientid, endorsement_signals[clientid], localbroadcast)
 	
 		go sendMessage("PAXOS|" + s + "/" + signatures, sender_id,zone)
 
 	case "LEADERELECTION_REPLY":
+		state.locks[acceptack_key].Lock()
+		if seq_num < state.votes[clientid].Seq  {
+			state.locks[acceptack_key].Unlock()
+			// fmt.Printf("Bad paxos2 seq num for %s, %s < %s \n", message, seq_num, state.votes[clientid].Seq)
+						
+			return
+		} else if seq_num == state.votes[clientid].Seq {
+			state.votes[clientid].Count += 1
+		} else {
+			state.votes[clientid].Seq = seq_num
+			state.votes[clientid].Count = 1
+		}
+
 		state.votes[clientid].Count += 1
 		// fmt.Println("LEADER ELECTION VOTE count:", state.votes[clientid].Count)
 		if state.majorityAchieved(state.votes[clientid].Count) {
+			if common.VERBOSE && common.VERBOSE_EXTRA {
+				fmt.Println("Leader elected", message_val)
+			}
 			state.votes[clientid].Count = -30
 			state.votesignal[clientid] <- true
 		}
+		state.locks[acceptack_key].Unlock()
 	}
 
 	// Share the message with the rest of the zone
-	go localbroadcast("SHARE|" + message_val)
+	go localbroadcast("SHARE|" + message)
 }

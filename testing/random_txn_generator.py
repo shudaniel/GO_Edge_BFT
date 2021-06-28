@@ -72,18 +72,19 @@ def generate_txns(num_t, num_c, percent, num_zones, do_baseline, stable_leader =
 
                     # Randon number again to determine which zone to global to
                     while True:
-                        rand2 = random.randrange(3)
-                        if str(rand2) != zone:
-                            if rand2 == 0:
+                        rand2 = str(random.randrange(3))
+
+                        if rand2 != zone:
+                            if rand2 == "0":
                                 client1["numtxn"] += 1
                                 txn_type += "0"
-                            elif rand2 == 1:
+                            elif rand2 == "1":
                                 client2["numtxn"] += 1
                                 txn_type += "1"
                             else:
                                 client3["numtxn"] += 1
                                 txn_type += "2"
-                            zone = str(rand2)
+                            zone = rand2
                             break
                     
                     # client_global["numtxn"] += 1
@@ -107,6 +108,6 @@ def generate_txns(num_t, num_c, percent, num_zones, do_baseline, stable_leader =
             txndata_for_server.append(client3)
 
             txndata_for_client[starting_zone][client_id] = new_txn_list
-    
+            print(new_txn_list)
 
     return json.dumps(txndata_for_server), txndata_for_client, client_throughput

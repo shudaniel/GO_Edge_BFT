@@ -1,0 +1,9 @@
+{'0': {'received_txns': 3, 'total_latency': 0.054205331},
+ '1': {'received_txns': 4, 'total_latency': 0.057622278},
+ '2': {'received_txns': 4, 'total_latency': 0.048408805},
+ '3': {'received_txns': 5, 'total_latency': 0.08097096399999999},
+ '4': {'received_txns': 3, 'total_latency': 0.028635159},
+ '5': {'received_txns': 3, 'total_latency': 0.051754917000000004},
+ '6': {'received_txns': 3, 'total_latency': 0.032866206},
+ '7': {'received_txns': 4, 'total_latency': 0.07527755500000001},
+ '8': {'received_txns': 2, 'total_latency': 0.023371072}}
