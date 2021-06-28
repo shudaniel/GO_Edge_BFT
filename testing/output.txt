@@ -1,3 +1,0 @@
-{'0': {'received_txns': 1, 'total_latency': 0.001221939},
- '1': {'received_txns': 1, 'total_latency': 0.012889093},
- '2': {'received_txns': 1, 'total_latency': 0.012525639}}

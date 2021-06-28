@@ -296,7 +296,12 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 		
 			go func(message string, id string, zone string, client_id string, ch <-chan bool, broadcast func(string), localbroadcast func(string), endorse_signals map[string]chan string, state *endorsement.EndorsementState, result chan bool) {
 				
-				run_leader_election := true
+				// If a leader election is needed, the end of the message is marked by an L
+
+				run_leader_election := message[len(message):] == "L"
+				if run_leader_election {
+					fmt.Println("LEADER ELECTION")
+				}
 				success := n.paxos_state.Run(message, id, zone, client_id, ch, broadcast, localbroadcast, endorse_signals, state, run_leader_election)
 				result <- success
 

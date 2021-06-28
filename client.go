@@ -142,14 +142,13 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 			// fmt.Println("Received:", string(p))
 
 			go handleConnection(conn2, summation_ch, signal)
-		}
-		if addresses[j].Zone == "0" {
+		} else {
 			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
-			directory["global"] = conn2
+			directory[ addresses[j].Zone ] = conn2
 			p := make([]byte, 1024)
 			_, err = conn2.Read(p)
 			// fmt.Println("Received:", string(p))
@@ -166,15 +165,22 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 
 
 	// client_starttime := time.Now()
+	previous_zone := "-1"
 	for i := 0; i < num_t; i++ {
 		// p :=  make([]byte, 512)
 		i_str := strconv.Itoa(i)
-		txn_type := txns[i]
-		client_request := common.MESSAGE_DELIMITER + "CLIENT_REQUEST|" + client_id + "!" + i_str + "!10|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
+		txn_type := txns[i][0:1]
+		client_request := common.MESSAGE_DELIMITER + "CLIENT_REQUEST|" + client_id + "!" + i_str + "!10" 
 		// start := time.Now()
 		// fmt.Println("sending:", i, client_id)
 		if txn_type == "g" {
-			directory["global"].Write([]byte(client_request))
+			global_zone := txns[i][1:2]
+			if previous_zone != global_zone {
+				// A leader election is needed
+				client_request += "!L"
+			}
+			client_request += "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
+			directory[global_zone].Write([]byte(client_request))
 			// fmt.Fprintf(directory["global"], client_request)
 
 			// _, err = bufio.NewReader(directory["global"]).Read(p)
@@ -184,8 +190,10 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 			// 	fmt.Printf("Some error %v\n", err)
 			// }
 			// fmt.Println("Received", string(p), "g")
+			previous_zone = global_zone
 
 		} else {
+			client_request += "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
 			directory["local"].Write([]byte(client_request))
 			// fmt.Fprintf(directory["local"], client_request)
 
@@ -197,6 +205,7 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 			// }
 
 			// fmt.Println("Received", string(p), "l")
+			previous_zone = zone
 		}
 		<-signal
 		// fmt.Println("Signal received to start next", client_id)
@@ -223,8 +232,11 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 
 	// ch <- l
 
-	directory["local"].Close()
-	directory["global"].Close()
+	for _, v := range directory {
+		v.Close()
+	}
+	// directory["local"].Close()
+	
 
 	done_ch <- true
 }	
@@ -282,7 +294,6 @@ func summation(num_t int, ch chan Latencies, exit chan FinalResult) {
 
 func main() {
 
-	// all_start = true
 	num_c := 10
 	num_t := 10
 	zone := "0"
@@ -294,27 +305,6 @@ func main() {
 	argsWithoutProg := os.Args[1:]
 	for i, s := range argsWithoutProg {
 		switch s {
-		// case "-i":
-		// 	new_i, err := strconv.Atoi(argsWithoutProg[i + 1])
-		// 	if err == nil {
-		// 		client_id_seed = new_i
-		// 	}
-		// case "-c":
-		// 	new_c, err := strconv.Atoi(argsWithoutProg[i + 1])
-		// 	if err == nil {
-		// 		num_c = new_c
-		// 	}
-		// case "-t":
-		// 	new_t, err := strconv.Atoi(argsWithoutProg[i + 1])
-		// 	if err == nil {
-		// 		num_t = new_t
-		// 	}
-		
-		// case "-r":
-		// 	new_r, err := strconv.ParseFloat(argsWithoutProg[i + 1], 64)
-		// 	if err == nil {
-		// 		percent = new_r
-		// 	}
 		
 		case "-a":
 			ip_addr = argsWithoutProg[i + 1]
@@ -324,12 +314,9 @@ func main() {
 			if err == nil {
 				port = new_p
 			}
-		// case "-z":
-		// 	zone = argsWithoutProg[i + 1]
 		}
 
 	}
-
 
 
 	p := make([]byte, 2049)

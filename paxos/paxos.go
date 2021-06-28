@@ -157,9 +157,9 @@ func (state *PaxosState) HandleMessage(
 	zone := components[3]
 	message_val := components[4]
 
-	fmt.Println("MESSAGE VAL", message_val)
+	// fmt.Println("MESSAGE VAL", message_val)
 	seq_num, _ := strconv.Atoi( strings.Split(message_val, "!")[1] )
-	fmt.Println("MESSAGE VAL seq_num", seq_num)
+	// fmt.Println("MESSAGE VAL seq_num", seq_num)
 
 	seq_num = 3 * seq_num + 1
 
@@ -227,7 +227,7 @@ func (state *PaxosState) HandleMessage(
 
 	case "LEADERELECTION_REPLY":
 		state.votes[clientid].Count += 1
-		fmt.Println("LEADER ELECTION VOTE count:", state.votes[clientid].Count)
+		// fmt.Println("LEADER ELECTION VOTE count:", state.votes[clientid].Count)
 		if state.majorityAchieved(state.votes[clientid].Count) {
 			state.votes[clientid].Count = -30
 			state.votesignal[clientid] <- true
