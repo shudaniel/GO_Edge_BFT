@@ -104,6 +104,7 @@ func (state *EndorsementState) HandleMessage(
 
 	seq_num, _ := strconv.Atoi(components[5])
 
+
 	prepare_key := clientid + "E_PREPARE"
 	promise_key := clientid + "E_PROMISE"
 

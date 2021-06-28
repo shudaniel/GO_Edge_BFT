@@ -233,6 +233,8 @@ func (n *node) handleJoin(message_components []string, outbox chan string, reply
 	}
 	n.public_keys[nodeid] = common.BytesToPublicKey(pubkey_bytes)
 	n.directory[zone][nodeid] = outbox
+
+	n.paxos_state.SetMajority( len(n.directory) / 2 + 1 )
 	lock_mutex.Unlock()
 	
 }
@@ -294,7 +296,8 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 		
 			go func(message string, id string, zone string, client_id string, ch <-chan bool, broadcast func(string), localbroadcast func(string), endorse_signals map[string]chan string, state *endorsement.EndorsementState, result chan bool) {
 				
-				success := n.paxos_state.Run(message, id, zone, client_id, ch, broadcast, localbroadcast, endorse_signals, state)
+				run_leader_election := true
+				success := n.paxos_state.Run(message, id, zone, client_id, ch, broadcast, localbroadcast, endorse_signals, state, run_leader_election)
 				result <- success
 
 			} (message, n.id, n.zone, client_id, n.global_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state, results)
