@@ -268,7 +268,7 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 
 	results := make(chan bool)
 	txn_type := components[len(components) - 1]
-	fmt.Println("TXN TYPE: ", txn_type)
+	// fmt.Println("TXN TYPE: ", txn_type)
 	total_time := 0.0
 	var end time.Time
 	start := time.Now()
