@@ -244,12 +244,12 @@ func (n *node) handleClientJoin(startingid int, zone string, num_c int) {
 	for i := 0; i < num_c; i++ {
 		clientid := strconv.Itoa(startingid + i)
 		lock_mutex.Lock()
-		if n.zone == zone {
-			fmt.Printf("Client joining: %s\n", clientid)
-			n.client_list[clientid] = true
-		} else {
-			n.client_list[clientid] = false
-		}
+		// if n.zone == zone {
+		// 	fmt.Printf("Client joining: %s\n", clientid)
+		// 	n.client_list[clientid] = true
+		// } else {
+		// 	n.client_list[clientid] = false
+		// }
 		n.pbft_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
 		n.global_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
 		n.endorse_signals[clientid] = make(chan string, common.MAX_CHANNEL_SIZE)
@@ -267,12 +267,13 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 	client_id := components[0]
 
 	results := make(chan bool)
-	txn_type := "l"
-
+	txn_type := components[len(components) - 1]
+	fmt.Println("TXN TYPE: ", txn_type)
 	total_time := 0.0
 	var end time.Time
 	start := time.Now()
-	if n.client_list[client_id] {
+	// if n.client_list[client_id] {
+	if txn_type == "l" {
 		// fmt.Println("%s is in client list", client_id)
 		go func(message string, id string, client_id string, ch chan bool, broadcast func(string), result chan bool) {
 
@@ -282,7 +283,6 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 		} (message, n.id, client_id,  n.pbft_signals[client_id] ,n.broadcastToZone, results)
 		
 	} else {
-		txn_type = "g"
 		if common.GLOBAL_TYPE == "PBFT" {
 			go func(message string, id string, client_id string, zone string, ch chan bool, broadcast func(string), result chan bool) {
 
@@ -298,10 +298,10 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 				
 				// If a leader election is needed, the end of the message is marked by an L
 
-				run_leader_election := message[len(message):] == "L"
-				if run_leader_election {
-					fmt.Println("LEADER ELECTION")
-				}
+				run_leader_election := txn_type == "G"
+				// if run_leader_election {
+				// 	fmt.Println("LEADER ELECTION")
+				// }
 				success := n.paxos_state.Run(message, id, zone, client_id, ch, broadcast, localbroadcast, endorse_signals, state, run_leader_election)
 				result <- success
 

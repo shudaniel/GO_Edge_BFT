@@ -14,9 +14,9 @@ def generate_txns(num_t, num_c, percent, num_zones, do_baseline, stable_leader =
     client_throughput = {}
     for i in range(num_zones):
         
-        zone = str(i)
+        starting_zone = str(i)
 
-        txndata_for_client[zone] = {}
+        txndata_for_client[starting_zone] = {}
         for j in range(num_c):
             client_id = str((i * num_c) + j)
 
@@ -61,7 +61,7 @@ def generate_txns(num_t, num_c, percent, num_zones, do_baseline, stable_leader =
             client2 = { "zone": "1", "clientid": client_id, "numtxn": 0 }
             client3 = { "zone": "2", "clientid": client_id, "numtxn": 0 }
 
-
+            zone = starting_zone
             for k in range(num_t):
                 
                 rand = random.random()
@@ -83,6 +83,7 @@ def generate_txns(num_t, num_c, percent, num_zones, do_baseline, stable_leader =
                             else:
                                 client3["numtxn"] += 1
                                 txn_type += "2"
+                            zone = str(rand2)
                             break
                     
                     # client_global["numtxn"] += 1
@@ -105,7 +106,7 @@ def generate_txns(num_t, num_c, percent, num_zones, do_baseline, stable_leader =
             txndata_for_server.append(client2)
             txndata_for_server.append(client3)
 
-            txndata_for_client[zone][client_id] = new_txn_list
+            txndata_for_client[starting_zone][client_id] = new_txn_list
     
 
     return json.dumps(txndata_for_server), txndata_for_client, client_throughput

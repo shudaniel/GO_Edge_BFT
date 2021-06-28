@@ -129,32 +129,32 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 	directory := make(map[string]net.Conn)
 	signal := make(chan bool)
 	for j := 0; j < len(addresses); j++ {
-		if addresses[j].Zone == zone {
-			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			directory["local"] = conn2
+		// if addresses[j].Zone == zone {
+		// 	conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
+		// 	if err != nil {
+		// 		fmt.Println(err)
+		// 		return
+		// 	}
+		// 	directory["local"] = conn2
 
-			p := make([]byte, 1024)
-			_, err = conn2.Read(p)
-			// fmt.Println("Received:", string(p))
+		// 	p := make([]byte, 1024)
+		// 	_, err = conn2.Read(p)
+		// 	// fmt.Println("Received:", string(p))
 
-			go handleConnection(conn2, summation_ch, signal)
-		} else {
-			conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			directory[ addresses[j].Zone ] = conn2
-			p := make([]byte, 1024)
-			_, err = conn2.Read(p)
-			// fmt.Println("Received:", string(p))
-
-			go handleConnection(conn2, summation_ch, signal)
+		// 	go handleConnection(conn2, summation_ch, signal)
+		// } else {
+		conn2, err := net.Dial("tcp", addresses[j].Ip + ":" + addresses[j].Port)
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
+		directory[ addresses[j].Zone ] = conn2
+		p := make([]byte, 1024)
+		_, err = conn2.Read(p)
+		// fmt.Println("Received:", string(p))
+
+		go handleConnection(conn2, summation_ch, signal)
+		// }
 	}
 
 	
@@ -177,9 +177,13 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 			global_zone := txns[i][1:2]
 			if previous_zone != global_zone {
 				// A leader election is needed
-				client_request += "!L"
+				client_request += "!G"
+			} else {
+				client_request += "!g"
 			}
 			client_request += "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
+
+			zone = global_zone
 			directory[global_zone].Write([]byte(client_request))
 			// fmt.Fprintf(directory["global"], client_request)
 
@@ -193,8 +197,9 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 			previous_zone = global_zone
 
 		} else {
-			client_request += "|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
-			directory["local"].Write([]byte(client_request))
+			client_request += "!l|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
+			// directory["local"].Write([]byte(client_request))
+			directory[zone].Write([]byte(client_request))
 			// fmt.Fprintf(directory["local"], client_request)
 
 			// _, err = bufio.NewReader(directory["local"]).Read(p)
