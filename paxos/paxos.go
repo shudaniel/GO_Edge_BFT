@@ -29,7 +29,7 @@ func NewPaxosState() *PaxosState {
 	newState := PaxosState{
 		counter:           make(map[string]*common.Counter),
 		votes:  make(map[string]*common.Counter),
-		votesignal: make(map[string]chan bool, 10),
+		votesignal: make(map[string]chan bool),
 		acceptsignal: make(map[string] chan bool),
 		locks:             make(map[string]*sync.Mutex),
 		majority:          0,

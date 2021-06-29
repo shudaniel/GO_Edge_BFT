@@ -274,7 +274,7 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 
 				success := n.pbft_global_state.Run(message, id, client_id, zone, ch , broadcast)
 				results <- true
-				if true ||  common.VERBOSE && common.VERBOSE_EXTRA {
+				if common.VERBOSE && common.VERBOSE_EXTRA {
 					fmt.Println("DONE 2level PBFT", message, success)
 				}
 
@@ -291,7 +291,7 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 				
 				success := n.paxos_state.Run(message, id, zone, client_id, broadcast, localbroadcast, state, run_leader_election)
 				results <- true
-				if true ||  common.VERBOSE && common.VERBOSE_EXTRA {
+				if common.VERBOSE && common.VERBOSE_EXTRA {
 					fmt.Println("DONE PAXOS", message, success)
 				}
 
