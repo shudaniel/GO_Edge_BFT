@@ -48,7 +48,6 @@ type CompletedTxn struct {
 type node struct {
 	my_addr           string
 	directory		  map[string]map[string]chan string
-	client_locks             map[string]*sync.Mutex
 	pbft_state        *pbft.PbftState
 	pbft_global_state        *pbft.PbftGlobalState
 	endorse_state        *endorsement.EndorsementState
@@ -59,14 +58,11 @@ type node struct {
 	inboxUDP          chan IncomingUDPMessage
 	outboxesTCP           map[string]chan string
 	outboxUDP            chan OutgoingUDPMessage
-	endorse_signals           map[string]chan string
 	pbft_signals           map[string]chan bool
 	global_signals           map[string]chan bool
 	public_keys            map[string]*rsa.PublicKey
 	private_key            *rsa.PrivateKey
-	client_list map[string]bool
 	txn_input chan CompletedTxn
-	//localLog          []common.Message
 }
 
 func NewNode(ip string, port int, z string, f int) *node {
@@ -77,7 +73,6 @@ func NewNode(ip string, port int, z string, f int) *node {
 
 
 	newNode := node{
-		client_locks:             make(map[string]*sync.Mutex),
 		my_addr:            ip + ":" + strconv.Itoa(port),
 		directory:           make(map[string]map[string]chan string),
 		pbft_state:          pbft.NewPbftState(f),
@@ -91,11 +86,9 @@ func NewNode(ip string, port int, z string, f int) *node {
 		inboxUDP:           make(chan IncomingUDPMessage, common.MAX_CHANNEL_SIZE),
 		private_key:          priv_key,
 		public_keys:         make(map[string]*rsa.PublicKey),
-		endorse_signals:             make(map[string]chan string),
 		pbft_signals:             make(map[string]chan bool),
 		global_signals:             make(map[string]chan bool),
-		txn_input: make(chan CompletedTxn, common.MAX_CHANNEL_SIZE),
-		client_list: make(map[string]bool),
+		txn_input: make(chan CompletedTxn),
 	}
 	newNode.public_keys[newNode.id] = pub_key
 
@@ -108,7 +101,6 @@ func (n *node) reset() {
 	// n.endorse_state = endorsement.NewEndorseState(n.endorse_state.GetF())
 	// n.paxos_state = paxos.NewPaxosState()
 
-	n.endorse_signals = make(map[string]chan string)
 	n.pbft_signals = make(map[string]chan bool)
 	n.global_signals = make(map[string]chan bool)
 
@@ -245,16 +237,9 @@ func (n *node) handleClientJoin(startingid int, zone string, num_c int) {
 	for i := 0; i < num_c; i++ {
 		clientid := strconv.Itoa(startingid + i)
 		lock_mutex.Lock()
-		n.client_locks[clientid] = &sync.Mutex{}
-		// if n.zone == zone {
-		// 	fmt.Printf("Client joining: %s\n", clientid)
-		// 	n.client_list[clientid] = true
-		// } else {
-		// 	n.client_list[clientid] = false
-		// }
+
 		n.pbft_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
 		n.global_signals[clientid] = make(chan bool, common.MAX_CHANNEL_SIZE)
-		n.endorse_signals[clientid] = make(chan string, common.MAX_CHANNEL_SIZE)
 		fmt.Printf("Client locks created: %s\n", zone)
 		n.pbft_state.Initialize(clientid)
 		n.pbft_global_state.Initialize(clientid)
@@ -274,41 +259,43 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 	total_time := 0.0
 	var end time.Time
 	start := time.Now()
-	// if n.client_list[client_id] {
 	if txn_type == "l" {
 		// fmt.Println("%s is in client list", client_id)
-		go func(message string, id string, client_id string, ch chan bool, broadcast func(string), result chan bool) {
+		go func(message string, id string, client_id string, ch chan bool, broadcast func(string), results chan bool) {
 
 			success := n.pbft_state.Run(message, id, client_id,  ch , broadcast)
-			result <- success
+			results <- success
 
 		} (message, n.id, client_id,  n.pbft_signals[client_id] ,n.broadcastToZone, results)
 		
 	} else {
 		if common.GLOBAL_TYPE == "PBFT" {
-			go func(message string, id string, client_id string, zone string, ch chan bool, broadcast func(string), result chan bool) {
+			go func(message string, id string, client_id string, zone string, ch chan bool, broadcast func(string), results chan bool) {
 
 				success := n.pbft_global_state.Run(message, id, client_id, zone, ch , broadcast)
-				result <- success
+				results <- true
+				if true ||  common.VERBOSE && common.VERBOSE_EXTRA {
+					fmt.Println("DONE 2level PBFT", message, success)
+				}
 
 			} (message, n.id, client_id, n.zone,  n.global_signals[client_id] ,n.broadcastEveryone, results)
 
 		} else {
 
 		
-			go func(message string, id string, zone string, client_id string, ch <-chan bool, broadcast func(string), localbroadcast func(string), endorse_signals map[string]chan string, state *endorsement.EndorsementState, result chan bool) {
+			go func(message string, id string, zone string, client_id string, broadcast func(string), localbroadcast func(string), state *endorsement.EndorsementState, results chan bool) {
 				
 				// If a leader election is needed, the end of the message is marked by an L
 
 				run_leader_election := txn_type == "G"
-				run_leader_election = true
-				// if run_leader_election {
-				// 	fmt.Println("LEADER ELECTION")
-				// }
-				success := n.paxos_state.Run(message, id, zone, client_id, ch, broadcast, localbroadcast, endorse_signals, state, run_leader_election)
-				result <- success
+				
+				success := n.paxos_state.Run(message, id, zone, client_id, broadcast, localbroadcast, state, run_leader_election)
+				results <- true
+				if true ||  common.VERBOSE && common.VERBOSE_EXTRA {
+					fmt.Println("DONE PAXOS", message, success)
+				}
 
-			} (message, n.id, n.zone, client_id, n.global_signals[client_id], n.broadcastInterzonal, n.broadcastToZone, n.endorse_signals, n.endorse_state, results)
+			} (message, n.id, n.zone, client_id, n.broadcastInterzonal, n.broadcastToZone, n.endorse_state, results)
 		// fmt.Println("%s not is in client list", client_id)
 		}
 	}
@@ -330,11 +317,9 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 		fmt.Println("TIMEOUT on", message, txn_type)
 		
     }
-	// n.client_locks[client_id].Lock()
-	// n.paxos_state.Initialize(client_id)
-	// n.client_locks[client_id].Unlock()
+
 	n.sendTCPResponse(message, outbox)
-	// fmt.Println("Total time: %d", total_time)
+	fmt.Println("Total time: %d", total_time)
 
 }
 
@@ -378,10 +363,10 @@ func (n *node) handleTCPMessage(message string, outbox chan string) {
 		n.handleJoin(components, outbox, false)
 	case "ENDORSE":
 		endorse_msg := components[1]
-		n.endorse_state.HandleMessage(endorse_msg, n.broadcastToZone, n.sendToNode, n.zone, n.id, n.endorse_signals, n.public_keys, n.private_key)
+		n.endorse_state.HandleMessage(endorse_msg, n.broadcastToZone, n.sendToNode, n.zone, n.id, n.public_keys, n.private_key)
 	case "PAXOS":
 		paxos_msg := components[1]
-		n.paxos_state.HandleMessage(paxos_msg, n.broadcastInterzonal, n.broadcastToZone, n.sendToNode, n.id, n.global_signals, n.endorse_signals, n.endorse_state)
+		n.paxos_state.HandleMessage(paxos_msg, n.broadcastInterzonal, n.broadcastToZone, n.sendToNode, n.id, n.endorse_state)
 	case "SHARE":
 		paxos_msg := components[1]
 		n.paxos_state.HandleShareMessage(paxos_msg)
@@ -493,7 +478,7 @@ func (n *node) handleConnection(c net.Conn, outbox chan string) {
 			// value := string(received_data.Msg)
 			value := received_data.Msg
 			// if common.VERBOSE && common.VERBOSE_EXTRA {
-			// 	fmt.Println("Raw Received", value)
+			// 	fmt.Printf("Raw Received %s from %s\n", value, c.RemoteAddr().String())
 			// }
 			// if value[len(value)-1:] == common.MESSAGE_ENDER {
 			go n.handleTCPMessage(value, received_data.outbox)

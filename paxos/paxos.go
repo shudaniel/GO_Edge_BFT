@@ -74,13 +74,12 @@ func (state *PaxosState) RunLeaderElection(
 		zone string, 
 		broadcast func(string), 
 		localbroadcast func(string),
-		endorsement_signals map[string]chan string,
 		e_state *endorsement.EndorsementState) {
 	// Broadcast vote to everyone
 
 	// BUG: seq num
 	electionmsg := create_paxos_message(id, "LEADERELECTION_VOTE", message_val, clientid, zone)
-	signatures := e_state.Run( electionmsg, seq_num, id, clientid, endorsement_signals[clientid], localbroadcast )
+	signatures := e_state.Run( electionmsg, seq_num, id, clientid, localbroadcast )
 	state.votes[clientid].Count = 1
 	state.votes[clientid].Seq = seq_num
 	broadcast( "PAXOS|" + electionmsg + "/" + signatures  )
@@ -96,10 +95,8 @@ func (state *PaxosState) Run(
 	id string, 
 	zone string,
 	clientid string,
-	ch <-chan bool,
 	broadcast func(string),
 	localbroadcast func(string),
-	endorsement_signals map[string]chan string,
 	e_state *endorsement.EndorsementState,
 	run_leader_election bool,
 ) bool {
@@ -108,12 +105,12 @@ func (state *PaxosState) Run(
 	seq_num, _ := strconv.Atoi( strings.Split(message, "!")[1] )
 	seq_num = 3 * seq_num
 	if run_leader_election {
-		state.RunLeaderElection(id, seq_num, message, clientid, zone, broadcast, localbroadcast, endorsement_signals, e_state)
+		state.RunLeaderElection(id, seq_num, message, clientid, zone, broadcast, localbroadcast, e_state)
 	}
 
 	preprepare_msg := create_paxos_message(id, "ACCEPT", message, clientid, zone)
 	
-	signatures := e_state.Run( preprepare_msg, seq_num + 1, id, clientid, endorsement_signals[clientid], localbroadcast )
+	signatures := e_state.Run( preprepare_msg, seq_num + 1, id, clientid, localbroadcast )
 	
 	if common.VERBOSE && common.VERBOSE_EXTRA {
 		fmt.Println("Got endorsement for ACCEPT")
@@ -155,8 +152,6 @@ func (state *PaxosState) HandleMessage(
 	localbroadcast func(string),
 	sendMessage func (string, string, string),
 	id string,
-	signals map[string]chan bool,
-	endorsement_signals map[string]chan string,
 	e_state *endorsement.EndorsementState,
 ) {
 	components := strings.Split(message, "/")
@@ -181,7 +176,7 @@ func (state *PaxosState) HandleMessage(
 
 	case "ACCEPT":
 		s := create_paxos_message(id, "ACCEPTACK", message_val, clientid, zone)
-		signatures := e_state.Run(s, seq_num + 1, id, clientid, endorsement_signals[clientid], localbroadcast)
+		signatures := e_state.Run(s, seq_num + 1, id, clientid, localbroadcast)
 	
 		go sendMessage("PAXOS|" + s + "/" + signatures, sender_id,zone)
 		
@@ -209,7 +204,7 @@ func (state *PaxosState) HandleMessage(
 			state.locks[acceptack_key].Unlock()
 			s := create_paxos_message(id, "PAXOS_COMMIT", message_val, clientid, zone)
 
-			signatures := e_state.Run( s, seq_num + 1, id, clientid, endorsement_signals[clientid], localbroadcast )
+			signatures := e_state.Run( s, seq_num + 1, id, clientid, localbroadcast )
 			broadcast("PAXOS|" + s + "/" + signatures)
 			// Run endorsement for commit message
 			// new_chan := make(chan bool)
@@ -237,7 +232,7 @@ func (state *PaxosState) HandleMessage(
 		// Take value and commit it to the log
 	case "LEADERELECTION_VOTE":
 		s := create_paxos_message(id, "LEADERELECTION_REPLY", message_val, clientid, zone)
-		signatures := e_state.Run(s, seq_num, id, clientid, endorsement_signals[clientid], localbroadcast)
+		signatures := e_state.Run(s, seq_num, id, clientid, localbroadcast)
 	
 		go sendMessage("PAXOS|" + s + "/" + signatures, sender_id,zone)
 
