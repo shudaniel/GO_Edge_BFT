@@ -19,6 +19,7 @@ type EndorsementState struct {
 	failures          int
 	locks             map[string]*sync.Mutex
 	signals           map[string]chan string
+	in_use  map[string]*bool
 }
 
 func NewEndorseState(f int) *EndorsementState {
@@ -29,6 +30,7 @@ func NewEndorseState(f int) *EndorsementState {
 		locks:  make(map[string]*sync.Mutex),
 		signals: make(map[string]chan string),
 		failures: f,
+		in_use: make(map[string]*bool),
 		//localLog:          make([]common.Message, 0),
 	}
 
@@ -53,13 +55,17 @@ func (state *EndorsementState) Initialize(clientid string ) {
 		Seq: -1,
 		Count: 0,
 	}
+
+	false_bool := false
+	state.in_use[clientid] = &false_bool
+
 	state.counter_prepare[clientid] = &newPrepareCounter
 	state.counter_promise[clientid] = &newPromiseCounter
 
 	state.signatures[clientid] = []string{"", "", ""}
 	state.signals[clientid] = make(chan string)
-	state.locks[clientid + "E_PREPARE"] = &sync.Mutex{}
-	state.locks[clientid + "E_PROMISE"] = &sync.Mutex{}
+	state.locks[clientid] = &sync.Mutex{}
+	// state.locks[clientid + "E_PROMISE"] = &sync.Mutex{}
 }
 
 
@@ -76,15 +82,20 @@ func (state *EndorsementState) Run(
 	preprepare_msg := createEndorseMsg("E_PRE_PREPARE", message, id, id, clientid, seq)
 
 	// fmt.Printf("Run %s, seq is now %s\n", message, strconv.Itoa(seq))
-	state.locks[clientid + "E_PREPARE"].Lock()
-	state.locks[clientid + "E_PROMISE"].Lock()
+	state.locks[clientid].Lock()
+	if *state.in_use[clientid] {
+		// There is something else trying to get the endorsement right now, so we need to kill it
+		state.signals[clientid] <- "/"
+	}	
+	*state.in_use[clientid] = true
+	// state.locks[clientid + "E_PROMISE"].Lock()
 	state.counter_prepare[clientid].Seq = seq
 	state.counter_prepare[clientid].Count = 1
 
 	state.counter_promise[clientid].Seq = seq
 	state.counter_promise[clientid].Count = 0
-	state.locks[clientid + "E_PREPARE"].Unlock()
-	state.locks[clientid + "E_PROMISE"].Unlock()
+	// state.locks[clientid + "E_PREPARE"].Unlock()
+	state.locks[clientid].Unlock()
 
 	// state.counter_prepare.Store(message  + "E_PREPARE", 1)
 	
@@ -118,8 +129,8 @@ func (state *EndorsementState) HandleMessage(
 	seq_num, _ := strconv.Atoi(components[5])
 	// fmt.Printf("Seq num for %s is %s\n", message, seq_num)
 
-	prepare_key := clientid + "E_PREPARE"
-	promise_key := clientid + "E_PROMISE"
+	// prepare_key := clientid + "E_PREPARE"
+	// promise_key := clientid + "E_PROMISE"
 
 	achieve_prepare_quorum := false
 	signature_str := ""
@@ -134,10 +145,10 @@ func (state *EndorsementState) HandleMessage(
 		fallthrough
 	case "E_PREPARE":
 		
-		state.locks[prepare_key].Lock()
-
+		state.locks[clientid].Lock()
+		fmt.Printf("Received Prepare %s, seq is now %s\n", message, strconv.Itoa(state.counter_prepare[clientid].Seq))
 		if seq_num < state.counter_prepare[clientid].Seq  {
-			state.locks[prepare_key].Unlock()
+			state.locks[clientid].Unlock()
 			// fmt.Printf("Bad prepare seq num for %s, %s < %s \n", message, seq_num, state.counter_prepare[clientid].Seq)
 			return
 		} else if seq_num == state.counter_prepare[clientid].Seq {
@@ -145,6 +156,7 @@ func (state *EndorsementState) HandleMessage(
 		} else {
 
 			// fmt.Printf("Received Prepare %s, seq iss now %s\n", message, strconv.Itoa(seq_num))
+			
 			state.counter_prepare[clientid].Seq = seq_num
 			state.counter_prepare[clientid].Count = increment_amount
 		}
@@ -158,7 +170,7 @@ func (state *EndorsementState) HandleMessage(
 				fmt.Printf("Quorum endorsement achieved, message signed %s\n", message)
 			}
 			
-			state.locks[prepare_key].Unlock()
+			state.locks[clientid].Unlock()
 
 			// Sign the original value and send back
 
@@ -172,14 +184,14 @@ func (state *EndorsementState) HandleMessage(
 				sendMessage(s, original_senderid, zone)
 			} else {
 				// Don't send a message to yourself. Move to the next block 
-				state.locks[promise_key].Lock()
+				state.locks[clientid].Lock()
 				achieve_prepare_quorum = true	
 			}
 
 			
 		} else {
 			// state.counter_prepare.Store(msg_value + "E_PREPARE", count + increment_amount)
-			state.locks[prepare_key].Unlock()
+			state.locks[clientid].Unlock()
 		}
 
 	case "E_PROMISE":
@@ -200,11 +212,11 @@ func (state *EndorsementState) HandleMessage(
 				fmt.Println("Handling promise message for", msg_value)
 			}
 		if !achieve_prepare_quorum {
-			state.locks[promise_key].Lock()
+			state.locks[clientid].Lock()
 		}
-		
+
 		if seq_num < state.counter_promise[clientid].Seq  {
-			state.locks[promise_key].Unlock()
+			state.locks[clientid].Unlock()
 			// fmt.Printf("Bad promise seq num for %s, %s < %s \n", message, seq_num, state.counter_promise[clientid].Seq)
 			return
 		} else if seq_num == state.counter_promise[clientid].Seq {
@@ -228,7 +240,6 @@ func (state *EndorsementState) HandleMessage(
 			state.signatures[clientid][0] = ""
 			state.signatures[clientid][1] = ""
 			state.signatures[clientid][2] = ""
-			state.locks[promise_key].Unlock()
 
 			if common.VERBOSE && common.VERBOSE_EXTRA {
 				fmt.Printf("Quorum promise achieved for endorsement %s\n", message)
@@ -241,12 +252,14 @@ func (state *EndorsementState) HandleMessage(
 			// }
 			// Endorsement achieved
 			state.signals[clientid] <- signatures_str + ";"
+			*state.in_use[clientid] = false
+			state.locks[clientid].Unlock()
 		} else {
 			// state.counter_promise.Store(msg_value + "E_PROMISE", count + 1)
 			if i >= 0 && i < len(state.signatures[clientid]) { 
 				state.signatures[clientid][i] = signature_str
 			}
-			state.locks[promise_key].Unlock()
+			state.locks[clientid].Unlock()
 		}
 
 	}

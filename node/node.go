@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"os"
+	"io/ioutil"
 	"time"
 	"bufio"
 	"sync"
@@ -48,6 +49,7 @@ type CompletedTxn struct {
 type node struct {
 	my_addr           string
 	directory		  map[string]map[string]chan string
+	primaries         map[string]chan string
 	pbft_state        *pbft.PbftState
 	pbft_global_state        *pbft.PbftGlobalState
 	endorse_state        *endorsement.EndorsementState
@@ -75,6 +77,7 @@ func NewNode(ip string, port int, z string, f int) *node {
 	newNode := node{
 		my_addr:            ip + ":" + strconv.Itoa(port),
 		directory:           make(map[string]map[string]chan string),
+		primaries:           make(map[string]chan string),
 		pbft_state:          pbft.NewPbftState(f),
 		pbft_global_state:          pbft.NewPbftGlobalState(f),
 		endorse_state:       endorsement.NewEndorseState(f),
@@ -125,6 +128,27 @@ func (n *node) createJoinMessage(reply bool) string {
 	return msg
 }
 
+func (n *node) setPrimaries() {
+	type Address struct {
+		Zone string
+		Ip string
+		Port string
+	}
+
+
+	var addresses []Address
+	file, _ := ioutil.ReadFile("testing/primaries.json")
+	_ = json.Unmarshal([]byte(file), &addresses)
+
+	// Make a map to use either your zone primmary or primary 0
+
+	// signal := make(chan bool)
+	for j := 0; j < len(addresses); j++ {
+		primary_id := addresses[j].Ip + ":" + addresses[j].Port
+		n.primaries[primary_id] = make(chan string)
+	}
+}
+
 func (n *node) joinNetwork() {
 	file, err := os.Open("addresses.txt")
 	if err != nil {
@@ -149,6 +173,7 @@ func (n *node) joinNetwork() {
                 continue
         }
 		outbox := make(chan string, common.MAX_CHANNEL_SIZE)
+
 		go n.handleConnection(c, outbox)
 
 	}
@@ -226,6 +251,10 @@ func (n *node) handleJoin(message_components []string, outbox chan string, reply
 	}
 	n.public_keys[nodeid] = common.BytesToPublicKey(pubkey_bytes)
 	n.directory[zone][nodeid] = outbox
+
+	if _, ok := n.primaries[nodeid]; ok {
+		n.primaries[nodeid] = outbox
+	}
 
 	n.paxos_state.SetMajority( len(n.directory) / 2 + 1 )
 	lock_mutex.Unlock()
@@ -324,17 +353,23 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 }
 
 func (n *node) broadcastInterzonal(message string) {
-	for zone, _ := range n.directory {
-		if zone != n.zone {
-			for _, outbox := range n.directory[zone] {
-				
-				n.sendTCPResponse(message, outbox)
-				break
-				
-			}
+	for nodeid, outbox := range n.primaries {
+		if nodeid != n.id {
+			n.sendTCPResponse(message, outbox)
 		}
-
 	}
+
+	// for zone, _ := range n.directory {
+	// 	if zone != n.zone {
+	// 		for _, outbox := range n.directory[zone] {
+				
+	// 			n.sendTCPResponse(message, outbox)
+	// 			break
+				
+	// 		}
+	// 	}
+
+	// }
 }
 
 func (n *node) broadcastEveryone(message string) {
@@ -633,6 +668,7 @@ func (n *node) sendUDPResponse(message string, addr *net.UDPAddr) {
 
 func (n *node) Run() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
+	n.setPrimaries()
 	for i:= 0; i < runtime.NumCPU(); i++ {
 
 		go n.listenTCP()
