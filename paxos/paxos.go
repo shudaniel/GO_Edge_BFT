@@ -58,7 +58,6 @@ func (state *PaxosState) Initialize(clientid string ) {
 		Seq: -1,
 		Count: 0,
 	}
-
 	state.counter[clientid] = &newCounter
 	state.votesignal[clientid] = make(chan bool)
 	state.acceptsignal[clientid] = make(chan bool)
@@ -100,10 +99,10 @@ func (state *PaxosState) Run(
 	e_state *endorsement.EndorsementState,
 	run_leader_election bool,
 ) bool {
-
 	// fmt.Println("Need endorsement first")
 	seq_num, _ := strconv.Atoi( strings.Split(message, "!")[1] )
 	seq_num = 5 * seq_num
+
 	if run_leader_election {
 		state.RunLeaderElection(id, seq_num, message, clientid, zone, broadcast, localbroadcast, e_state)
 	}
@@ -116,11 +115,11 @@ func (state *PaxosState) Run(
 	if common.VERBOSE && common.VERBOSE_EXTRA {
 		fmt.Println("Got endorsement for ACCEPT")
 	}
+
 	// Get endorsement for this message
 	// Do not send message to yourself. Just ack it immediately
 	state.counter[clientid].Count = 1
 	state.counter[clientid].Seq = seq_num
-	
 	broadcast( "PAXOS|" + preprepare_msg + "/" + signatures )
 	// committed := <-ch
 	committed := <-state.acceptsignal[clientid]

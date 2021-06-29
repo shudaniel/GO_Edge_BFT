@@ -146,7 +146,7 @@ func (state *EndorsementState) HandleMessage(
 	case "E_PREPARE":
 		
 		state.locks[clientid].Lock()
-		fmt.Printf("Received Prepare %s, seq is now %s\n", message, strconv.Itoa(state.counter_prepare[clientid].Seq))
+		// fmt.Printf("Received Prepare %s, seq is now %s\n", message, strconv.Itoa(state.counter_prepare[clientid].Seq))
 		if seq_num < state.counter_prepare[clientid].Seq  {
 			state.locks[clientid].Unlock()
 			// fmt.Printf("Bad prepare seq num for %s, %s < %s \n", message, seq_num, state.counter_prepare[clientid].Seq)
@@ -161,7 +161,7 @@ func (state *EndorsementState) HandleMessage(
 			state.counter_prepare[clientid].Count = increment_amount
 		}
 
-		fmt.Println("Prepare Message vote count", state.counter_prepare[clientid].Count, message,  common.HasQuorum(state.counter_prepare[clientid].Count, state.failures) )
+		// fmt.Println("Prepare Message vote count", state.counter_prepare[clientid].Count, message,  common.HasQuorum(state.counter_prepare[clientid].Count, state.failures) )
 
 		if common.HasQuorum(state.counter_prepare[clientid].Count, state.failures) {
 			state.counter_prepare[clientid].Count = -30
@@ -178,7 +178,7 @@ func (state *EndorsementState) HandleMessage(
 			signature_str = hex.EncodeToString(signed_msg)
 			
 
-			fmt.Printf("%s, OG ID: %s, myid: %s\n", msg_value, original_senderid, id)
+			// fmt.Printf("%s, OG ID: %s, myid: %s\n", msg_value, original_senderid, id)
 			if original_senderid != id {
 				s := createEndorseMsg( "E_PROMISE", msg_value, id, original_senderid, clientid, seq_num ) + ";" + signature_str
 				sendMessage(s, original_senderid, zone)
@@ -227,7 +227,7 @@ func (state *EndorsementState) HandleMessage(
 			state.counter_promise[clientid].Seq = seq_num
 			state.counter_promise[clientid].Count = 1
 		}
-		fmt.Println("Promise Message vote count", state.counter_promise[clientid].Count, message )
+		// fmt.Println("Promise Message vote count", state.counter_promise[clientid].Count, message )
 		i := state.counter_promise[clientid].Count - 1
 		// interf, _ := state.counter_promise.LoadOrStore(msg_value + "E_PROMISE", 0)
 		// count := interf.(int) 

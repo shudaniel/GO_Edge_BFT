@@ -348,7 +348,7 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
     }
 
 	n.sendTCPResponse(message, outbox)
-	fmt.Println("Total time: %d", total_time)
+	// fmt.Println("Total time: %d", total_time)
 
 }
 
