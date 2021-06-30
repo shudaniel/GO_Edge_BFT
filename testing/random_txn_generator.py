@@ -77,13 +77,13 @@ def generate_txns(num_t, num_c, percent, num_zones, do_baseline, stable_leader =
                         if rand2 != zone:
                             if rand2 == "0":
                                 client1["numtxn"] += 1
-                                txn_type += "0"
+                                txn_type = "g0"
                             elif rand2 == "1":
                                 client2["numtxn"] += 1
-                                txn_type += "1"
+                                txn_type = "g1"
                             else:
                                 client3["numtxn"] += 1
-                                txn_type += "2"
+                                txn_type = "g2"
                             zone = rand2
                             break
                     
