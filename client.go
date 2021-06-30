@@ -176,7 +176,8 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 		txn_type := txns[i][0:1]
 		client_request := common.MESSAGE_DELIMITER + "CLIENT_REQUEST|" + client_id + "!" + i_str + "!10" 
 		// start := time.Now()
-		fmt.Println("Starting :" + client_id + "!" + i_str + "!10")
+
+		// fmt.Println("Starting :" + client_id + "!" + i_str + "!10")
 		// start := time.Now())
 		if txn_type == "g" {
 			global_zone := txns[i][1:2]
@@ -218,7 +219,7 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 			previous_zone = zone
 		}
 		directory[zone].Read(p)
-		fmt.Println("Done:", string(p))
+		// fmt.Println("Done:", string(p))
 		// <-signal
 		// fmt.Println("Signal received to start next", client_id)
 		
