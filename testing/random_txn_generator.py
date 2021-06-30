@@ -108,6 +108,6 @@ def generate_txns(num_t, num_c, percent, num_zones, do_baseline, stable_leader =
             txndata_for_server.append(client3)
 
             txndata_for_client[starting_zone][client_id] = new_txn_list
-            print(new_txn_list)
+            # print(new_txn_list)
 
     return json.dumps(txndata_for_server), txndata_for_client, client_throughput
