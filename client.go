@@ -179,8 +179,23 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 
 		// fmt.Println("Starting :" + client_id + "!" + i_str + "!10")
 		// start := time.Now())
-		if txn_type == "g" {
-			global_zone := txns[i][1:2]
+		if txn_type == "l" {
+			client_request += "!l|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
+			// directory["local"].Write([]byte(client_request))
+			directory[zone].Write([]byte(client_request))
+			// fmt.Fprintf(directory["local"], client_request)
+
+			// _, err = bufio.NewReader(directory["local"]).Read(p)
+			// if err == nil {
+			// 	// fmt.Printf("%s\n", p)
+			// } else {
+			// 	fmt.Printf("Some error %v\n", err)
+			// }
+
+			// fmt.Println("Received", string(p), "l")
+			previous_zone = zone
+		} else {
+			global_zone := txn_type
 			if previous_zone != global_zone {
 				// A leader election is needed
 				client_request += "!G"
@@ -202,22 +217,7 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 			// fmt.Println("Received", string(p), "g")
 			previous_zone = global_zone
 
-		} else {
-			client_request += "!l|" + common.MESSAGE_ENDER + common.MESSAGE_DELIMITER
-			// directory["local"].Write([]byte(client_request))
-			directory[zone].Write([]byte(client_request))
-			// fmt.Fprintf(directory["local"], client_request)
-
-			// _, err = bufio.NewReader(directory["local"]).Read(p)
-			// if err == nil {
-			// 	// fmt.Printf("%s\n", p)
-			// } else {
-			// 	fmt.Printf("Some error %v\n", err)
-			// }
-
-			// fmt.Println("Received", string(p), "l")
-			previous_zone = zone
-		}
+		} 
 		directory[zone].Read(p)
 		// fmt.Println("Done:", string(p))
 		// <-signal
