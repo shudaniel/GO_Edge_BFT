@@ -353,23 +353,23 @@ func (n *node) handleClientRequest(message string, outbox chan string) {
 }
 
 func (n *node) broadcastInterzonal(message string) {
-	for nodeid, outbox := range n.primaries {
-		if nodeid != n.id {
-			n.sendTCPResponse(message, outbox)
-		}
-	}
-
-	// for zone, _ := range n.directory {
-	// 	if zone != n.zone {
-	// 		for _, outbox := range n.directory[zone] {
-				
-	// 			n.sendTCPResponse(message, outbox)
-	// 			break
-				
-	// 		}
+	// for nodeid, outbox := range n.primaries {
+	// 	if nodeid != n.id {
+	// 		n.sendTCPResponse(message, outbox)
 	// 	}
-
 	// }
+
+	for zone, _ := range n.directory {
+		if zone != n.zone {
+			for _, outbox := range n.directory[zone] {
+				
+				n.sendTCPResponse(message, outbox)
+				break
+				
+			}
+		}
+
+	}
 }
 
 func (n *node) broadcastEveryone(message string) {

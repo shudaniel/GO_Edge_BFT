@@ -163,6 +163,9 @@ func client_thread(client_id string, zone string, num_t int, txns []string, summ
 	// for all_start {}
 	// fmt.Println("Got signal, starting now")
 
+	if num_t != len(txns) {
+		fmt.Println("num_t and txns not the same", num_t, txns)
+	}
 
 	// client_starttime := time.Now()
 	previous_zone := "-1"
