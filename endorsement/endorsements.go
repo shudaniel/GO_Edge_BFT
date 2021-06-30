@@ -77,8 +77,6 @@ func (state *EndorsementState) Run(
 	broadcast func(string),
 
 ) string {
-
-	return "WORKS"
 	
 	// seq, _ := strconv.Atoi( strings.Split(message, "!")[1] )
 	preprepare_msg := createEndorseMsg("E_PRE_PREPARE", message, id, id, clientid, seq)
